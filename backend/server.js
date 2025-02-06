@@ -68,8 +68,7 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, uniqueSuffix + path.extname(file.originalname))
+    cb(null, generateUniqueFilename(file.originalname));
   }
 });
 
@@ -105,15 +104,7 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024,
   },
-  fileFilter: function (req, file, cb) {
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.xls', '.xlsx'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('ไม่รองรับประเภทไฟล์นี้'));
-    }
-  }
+  fileFilter: fileFilter
 });
 
 app.use((err, req, res, next) => {
@@ -139,7 +130,7 @@ const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
   password: '12345678', 
-  database: 'pea',        
+  database: 'PEA',        
   waitForConnections: true,
   connectionLimit: 50,         
   queueLimit: 0,
@@ -439,7 +430,28 @@ app.post("/api/activities", upload.fields([{ name: "files" }, { name: "images" }
   const { systemId, importantInfo, details } = req.body;
 
   try {
-    // เก็บไฟล์แนบและรูปภาพ
+    // Add validation
+    if (!systemId || !importantInfo || !details) {
+      return res.status(400).json({ 
+        success: false,
+        message: "กรุณากรอกข้อมูลให้ครบถ้วน" 
+      });
+    }
+
+    // Get department info from system_master
+    const [system] = await pool.query(
+      'SELECT dept_change_code, dept_full FROM system_master WHERE id = ?',
+      [systemId]
+    );
+
+    if (system.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ไม่พบข้อมูลระบบ"
+      });
+    }
+
+    // Process files
     const filePaths = req.files?.["files"]
       ? req.files["files"].map((file) => `/uploads/${file.filename}`)
       : [];
@@ -447,25 +459,29 @@ app.post("/api/activities", upload.fields([{ name: "files" }, { name: "images" }
       ? req.files["images"].map((file) => `/uploads/${file.filename}`)
       : [];
 
-    // บันทึกข้อมูลลงฐานข้อมูล
-    const connection = await pool.getConnection();
+    // Insert with department info
     const query = `
-      INSERT INTO activities (system_id, important_info, details, file_paths, image_paths, created_at)
-      VALUES (?, ?, ?, ?, ?, NOW())
+      INSERT INTO activities 
+      (system_id, important_info, details, file_paths, image_paths, dept_change_code, dept_full) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    const [result] = await connection.execute(query, [
+
+    const [result] = await pool.execute(query, [
       systemId,
       importantInfo,
       details,
       filePaths.join(","),
       imagePaths.join(","),
+      system[0].dept_change_code,
+      system[0].dept_full
     ]);
 
     res.status(200).json({ 
       success: true,
       message: "บันทึกกิจกรรมสำเร็จ",
-      activityId: result.insertId 
+      activityId: result.insertId
     });
+
   } catch (error) {
     console.error("Error saving activity:", error);
     res.status(500).json({ 

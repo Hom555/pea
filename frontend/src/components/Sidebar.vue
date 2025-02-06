@@ -110,11 +110,11 @@
     <!-- User Profile -->
     <div class="user-profile">
       <div class="profile-info" v-if="!isCollapsed">
-        <img :src="userAvatar" alt="User Avatar" class="avatar" />
-          <div class="user-details">
-          <span class="username">{{ username }}</span>
-          <span class="role">{{ userRole }}</span>
-        </div>
+        <!-- <img :src="userAvatar" alt="User Avatar" class="avatar" /> -->
+        <div class="user-details">
+            <div class="user-name">{{ fullName }}</div>
+            <div class="user-role">{{ department }}</div>
+          </div>
       </div>
         <router-link to="/login" class="nav-item">
       <button @click="logout" class="logout-btn" :title="isCollapsed ? 'ออกจากระบบ' : ''">
@@ -126,40 +126,93 @@
 </template>
 
 <script>
+import axios from "axios";
+
 export default {
-  name: 'Sidebar',
-  
+  name: "AppSidebar",
   data() {
     return {
-      isCollapsed: false,
-      isAdmin: true,
-      username: 'ธีรภัทร ทองประภา',
-      userRole: 'Super Admin',
-      userAvatar: require('@/assets/avatar.jpg'),
+      logoSrc: require("@/assets/logo.png"),
+      sidebarOpen: false,
       subMenus: {
         systemMenu: false,
         updateDataMenu: false,
-        activityMenu: false
+        activityMenu: false,
+      },
+      userData: {
+        fullName: "",
+        department: "",
+        empId: null,
+      },
+    };
+  },
+  async created() {
+    try {
+      console.log('Fetching user data...');
+      const response = await axios.get("http://localhost:3007/api/data", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      console.log('API Response:', response.data);
+
+      if (response.data?.data?.dataDetail?.length > 0) {
+        const user = response.data.data.dataDetail[0];
+        console.log('User data:', user);
+
+        if (user.emp_id) {
+          this.userData = {
+            fullName: `${user.title_s_desc || ''}${user.first_name} ${user.last_name}`.trim(),
+            department: user.dept_full || "ไม่ระบุแผนก",
+            empId: user.emp_id,
+          };
+          console.log('Updated userData:', this.userData);
+        }
+      } else {
+        console.warn("ไม่พบข้อมูลผู้ใช้งานหรือข้อมูลว่าง");
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      if (error.response?.status === 401) {
+        console.error("Token หมดอายุ กรุณาเข้าสู่ระบบใหม่");
+        this.$router.push("/login");
       }
     }
   },
-
+  computed: {
+    fullName() {
+      return this.userData.empId ? this.userData.fullName : "ไม่พบชื่อผู้ใช้งาน";
+    },
+    department() {
+      return this.userData.empId ? this.userData.department : "ไม่พบแผนก";
+    },
+  },
   methods: {
     toggleSidebar() {
-      this.isCollapsed = !this.isCollapsed;
+      this.sidebarOpen = !this.sidebarOpen;
     },
-    
     toggleSubMenu(menu) {
-      if (!this.isCollapsed) {
+      Object.keys(this.subMenus).forEach((key) => {
+        if (key !== menu) this.subMenus[key] = false;
+      });
       this.subMenus[menu] = !this.subMenus[menu];
+    },
+    handleLogout() {
+      if (confirm("ต้องการออกจากระบบใช่หรือไม่?")) {
+        localStorage.removeItem("token");
+        this.$router.push("/login").catch((err) =>
+          console.error("Error navigating to login:", err)
+        );
       }
     },
-    
-    logout() {
-      console.log('Logging out...');
-    }
-  }
-}
+  },
+};
 </script>
 
 <style scoped>
