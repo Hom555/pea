@@ -1,0 +1,288 @@
+const express = require('express');
+const router = express.Router();
+const pool = require('../config/database');
+const path = require('path');
+
+// ดึงข้อมูลระบบทั้งหมด
+router.get('/system-records', async (req, res) => {
+  try {
+    const [systems] = await pool.query(`
+      SELECT id, name_th, name_en 
+      FROM systems 
+      ORDER BY name_th
+    `);
+    res.json(systems);
+  } catch (error) {
+    console.error('Error fetching systems:', error);
+    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลระบบได้' });
+  }
+});
+
+// ดึงข้อมูลสำคัญของระบบ
+router.get('/system-details/:systemId', async (req, res) => {
+  try {
+    const [details] = await pool.query(`
+      SELECT id, system_id, important_info 
+      FROM system_details 
+      WHERE system_id = ?
+      ORDER BY id
+    `, [req.params.systemId]);
+
+    res.json(details);
+  } catch (error) {
+    console.error('Error fetching system details:', error);
+    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลรายละเอียดได้' });
+  }
+});
+
+// ดึงข้อมูลกิจกรรม
+router.get('/activities/:systemId/:infoId', async (req, res) => {
+  let connection;
+  try {
+    const { systemId, infoId } = req.params;
+    console.log('Fetching activities for:', { systemId, infoId }); // เพิ่ม log
+
+    // Validate params
+    if (!systemId || !infoId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'ต้องระบุ system_id และ important_info_id'
+      });
+    }
+
+    connection = await pool.getConnection();
+    
+    const [activities] = await connection.query(`
+      SELECT 
+        a.*,
+        u.first_name,
+        u.last_name,
+        sd.important_info as importance_name,
+        s.name_th as system_name
+      FROM activities a
+      LEFT JOIN users u ON a.created_by = u.emp_id
+      LEFT JOIN system_details sd ON a.important_info_id = sd.id
+      LEFT JOIN systems s ON a.system_id = s.id
+      WHERE a.system_id = ? AND a.important_info_id = ?
+      ORDER BY a.created_at DESC
+    `, [systemId, infoId]);
+
+    console.log('Found activities:', activities.length); // เพิ่ม log
+    res.json(activities || []);
+
+  } catch (error) {
+    console.error('Error in /activities/:systemId/:infoId:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลกิจกรรมได้: ' + error.message
+    });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// อัพเดตกิจกรรม
+router.put('/activities/:id', async (req, res) => {
+  try {
+    const { details } = req.body;
+    const activityId = req.params.id;
+
+    await pool.query(`
+      UPDATE activities 
+      SET details = ?, 
+          updated_at = CURRENT_TIMESTAMP,
+          updated_by = ?
+      WHERE id = ?
+    `, [details, req.body.updated_by || 'system', activityId]);
+
+    res.json({ 
+      status: 'success',
+      message: 'อัพเดตข้อมูลกิจกรรมสำเร็จ' 
+    });
+  } catch (error) {
+    console.error('Error updating activity:', error);
+    res.status(500).json({ message: 'ไม่สามารถอัพเดตข้อมูลกิจกรรมได้' });
+  }
+});
+
+// ลบกิจกรรม
+router.delete('/activities/:id', async (req, res) => {
+  try {
+    const activityId = req.params.id;
+
+    // ตรวจสอบว่ามีกิจกรรมนี้อยู่หรือไม่
+    const [activity] = await pool.query(
+      'SELECT * FROM activities WHERE id = ?',
+      [activityId]
+    );
+
+    if (!activity.length) {
+      return res.status(404).json({ message: 'ไม่พบข้อมูลกิจกรรม' });
+    }
+
+    await pool.query('DELETE FROM activities WHERE id = ?', [activityId]);
+
+    res.json({ 
+      status: 'success',
+      message: 'ลบข้อมูลกิจกรรมสำเร็จ' 
+    });
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({ message: 'ไม่สามารถลบข้อมูลกิจกรรมได้' });
+  }
+});
+
+// เพิ่ม endpoint สำหรับบันทึกกิจกรรม
+router.post('/activities', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    
+    const { system_id, important_info_id, details } = req.body;
+    
+    // เริ่ม transaction
+    await connection.beginTransaction();
+
+    // บันทึกข้อมูลกิจกรรม
+    const [result] = await connection.query(
+      `INSERT INTO activities (system_id, important_info_id, details, created_at) 
+       VALUES (?, ?, ?, NOW())`,
+      [system_id, important_info_id, details]
+    );
+
+    const activityId = result.insertId;
+    const filePaths = [];
+    const imagePaths = [];
+
+    // จัดการไฟล์เอกสาร
+    if (req.files && req.files['files[]']) {
+      const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
+      
+      for (const file of files) {
+        const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const filePath = path.join(__dirname, '../public/uploads/files', safeName);
+        await file.mv(filePath);
+        filePaths.push(`/uploads/files/${safeName}`);
+      }
+    }
+
+    // จัดการไฟล์รูปภาพ
+    if (req.files && req.files['images[]']) {
+      const images = Array.isArray(req.files['images[]']) ? req.files['images[]'] : [req.files['images[]']];
+      
+      for (const image of images) {
+        const safeName = `${Date.now()}-${image.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const imagePath = path.join(__dirname, '../public/uploads/images', safeName);
+        await image.mv(imagePath);
+        imagePaths.push(`/uploads/images/${safeName}`);
+      }
+    }
+
+    // อัพเดตข้อมูลไฟล์ในฐานข้อมูล
+    if (filePaths.length > 0 || imagePaths.length > 0) {
+      await connection.query(
+        `UPDATE activities 
+         SET file_paths = ?, image_paths = ?
+         WHERE id = ?`,
+        [
+          filePaths.length > 0 ? JSON.stringify(filePaths) : null,
+          imagePaths.length > 0 ? JSON.stringify(imagePaths) : null,
+          activityId
+        ]
+      );
+    }
+
+    await connection.commit();
+    res.json({ status: 'success', message: 'บันทึกกิจกรรมสำเร็จ' });
+
+  } catch (error) {
+    if (connection) await connection.rollback();
+    console.error('Error saving activity:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกกิจกรรมได้: ' + error.message
+    });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+// เพิ่ม route test เพื่อตรวจสอบการทำงาน
+router.get('/test', (req, res) => {
+  res.json({ message: 'Activities API is working' });
+});
+
+// เพิ่ม endpoint สำหรับดึงข้อมูลแผนก
+router.get('/departments', async (req, res) => {
+  try {
+    const [departments] = await pool.query(`
+      SELECT id, name, division 
+      FROM departments 
+      ORDER BY name
+    `);
+    res.json(departments);
+  } catch (error) {
+    console.error('Error fetching departments:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลแผนกได้' 
+    });
+  }
+});
+
+// ปรับปรุง endpoint activities ให้รองรับการกรอง
+router.get('/activities', async (req, res) => {
+  let connection;
+  try {
+    const { department_id, system_id, info_id } = req.query;
+    
+    connection = await pool.getConnection();
+    
+    let query = `
+      SELECT 
+        a.*,
+        u.first_name,
+        u.last_name,
+        d.name as dept_name,
+        s.name_th as system_name,
+        sd.important_info
+      FROM activities a
+      LEFT JOIN users u ON a.created_by = u.emp_id
+      LEFT JOIN departments d ON u.department_id = d.id
+      LEFT JOIN systems s ON a.system_id = s.id
+      LEFT JOIN system_details sd ON a.important_info_id = sd.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    if (department_id) {
+      query += ` AND d.id = ?`;
+      params.push(department_id);
+    }
+    if (system_id) {
+      query += ` AND a.system_id = ?`;
+      params.push(system_id);
+    }
+    if (info_id) {
+      query += ` AND a.important_info_id = ?`;
+      params.push(info_id);
+    }
+    
+    query += ` ORDER BY a.created_at DESC`;
+    
+    const [activities] = await connection.query(query, params);
+    res.json(activities);
+
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลกิจกรรมได้'
+    });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+module.exports = router; 
