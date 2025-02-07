@@ -1165,36 +1165,52 @@ const authMiddleware = async (req, res, next) => {
 // app.use('/api/check-permission', authMiddleware);
 
 // แก้ไข endpoint สำหรับลบระบบ
-app.delete('/api/system-record/:id', async (req, res) => {
-  const id = req.params.id;
-
+app.delete('/api/system-record/:id', getUserData, async (req, res) => {
+  let conn;
   try {
-    const connection = await pool.getConnection();
-    try {
-      const [result] = await connection.query(
-        'DELETE FROM system_master WHERE id = ?',
-        [id]
-      );
+    conn = await pool.getConnection();
+    const id = req.params.id;
+    const userDept = req.user.dept_change_code;
 
-      if (result.affectedRows === 0) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'ไม่พบข้อมูลที่ต้องการลบ'
-        });
-      }
+    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [system] = await conn.query(`
+      SELECT dept_change_code 
+      FROM system_master 
+      WHERE id = ?
+    `, [id]);
 
-      res.json({
-        status: 'success',
-        message: 'ลบข้อมูลสำเร็จ'
+    if (system.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลที่ต้องการลบ'
       });
-    } finally {
-      connection.release();
     }
+
+    if (system[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+      });
+    }
+
+    // ลบข้อมูล
+    const [result] = await conn.query(
+      'DELETE FROM system_master WHERE id = ?',
+      [id]
+    );
+
+    res.json({
+      status: 'success',
+      message: 'ลบข้อมูลสำเร็จ'
+    });
+
   } catch (error) {
     console.error('Error deleting system record:', error);
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถลบข้อมูลได้'
     });
+  } finally {
+    if (conn) conn.release();
   }
 });

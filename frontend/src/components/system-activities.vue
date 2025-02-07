@@ -258,6 +258,7 @@
 <script>
 import axios from "axios";
 import { useToast } from 'vue-toastification';
+import { mapGetters } from 'vuex';
 
 export default {
   setup() {
@@ -277,16 +278,21 @@ export default {
       activities: [],
     };
   },
+  computed: {
+    ...mapGetters(['getUserDepartment'])
+  },
   methods: {
     async fetchSystems() {
       try {
-        const response = await axios.get('http://localhost:8881/api/system-records');
-        if (response.data) {
-          this.systemList = response.data.filter(system => system.is_active === 1);
-        }
+        const response = await axios.get("http://localhost:8088/api/system-records");
+        // กรองเฉพาะระบบของแผนกตัวเอง
+        this.systemList = response.data.filter(system => 
+          system.is_active === 1 && 
+          system.dept_change_code === this.getUserDepartment?.dept_change_code
+        );
       } catch (error) {
-        console.error('Error fetching systems:', error);
-        this.toast.error('ไม่สามารถดึงข้อมูลระบบได้');
+        console.error("Error fetching systems:", error);
+        this.toast.error("ไม่สามารถดึงข้อมูลระบบได้");
       }
     },
     async fetchImportantInfo() {

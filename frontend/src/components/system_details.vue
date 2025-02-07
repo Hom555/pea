@@ -114,6 +114,7 @@
 <script>
 import axios from "axios";
 import { useToast } from "vue-toastification";
+import { mapGetters } from 'vuex';
 
 export default {
   name: 'SystemDetails',
@@ -135,11 +136,19 @@ export default {
     return { toast };
   },
 
+  computed: {
+    ...mapGetters(['getUserDepartment'])
+  },
+
   methods: {
     async fetchSystems() {
       try {
-        const response = await axios.get("http://localhost:8881/api/system-records");
-        this.systemList = response.data.filter(system => system.is_active === 1);
+        const response = await axios.get("http://localhost:8088/api/system-records");
+        // กรองเฉพาะระบบของแผนกตัวเอง
+        this.systemList = response.data.filter(system => 
+          system.is_active === 1 && 
+          system.dept_change_code === this.getUserDepartment?.dept_change_code
+        );
       } catch (error) {
         console.error("ไม่สามารถดึงข้อมูลระบบได้:", error);
         this.toast.error("ไม่สามารถดึงข้อมูลระบบได้");
