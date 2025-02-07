@@ -10,6 +10,7 @@ const port = 8088;
 const activitiesRouter = require('./routes/activities');
 const ad = require('./ad');
 const fileUpload = require('express-fileupload');
+const axios = require('axios');
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:8082');
@@ -157,39 +158,32 @@ const withConnection = async (req, res, next) => {
 
 // เพิ่ม middleware สำหรับดึงข้อมูล user
 const getUserData = async (req, res, next) => {
-  let conn;
   try {
-    conn = await pool.getConnection();
-    const emp_id = 498146444; // ค่าชั่วคราว
+    // ดึงข้อมูลจาก API ภายนอก
+    const response = await axios.get('http://localhost:3007/api/data', {
+      headers: {
+        Authorization: `Bearer ${req.headers.authorization?.split(' ')[1] || ''}`
+      }
+    });
 
-    const [users] = await conn.query(`
-      SELECT 
-        emp_id,
-        first_name,
-        last_name,
-        dept_change_code,
-        dept_full,
-        role_id
-      FROM users 
-      WHERE emp_id = ?
-    `, [emp_id]);
-
-    if (users.length === 0) {
+    if (!response.data?.data?.dataDetail?.[0]) {
       return res.status(404).json({
         status: 'error',
         message: 'ไม่พบข้อมูลผู้ใช้'
       });
     }
 
+    const user = response.data.data.dataDetail[0];
+
     // ตรวจสอบว่ามีข้อมูลแผนกครบถ้วน
-    if (!users[0].dept_change_code || !users[0].dept_full) {
+    if (!user.dept_change_code || !user.dept_full) {
       return res.status(400).json({
         status: 'error',
         message: 'ข้อมูลแผนกไม่ครบถ้วน'
       });
     }
 
-    req.user = users[0];
+    req.user = user;
     next();
   } catch (error) {
     console.error('Error getting user data:', error);
@@ -197,12 +191,10 @@ const getUserData = async (req, res, next) => {
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้'
     });
-  } finally {
-    if (conn) conn.release();
   }
 };
 
-// ใช้ middleware กับ routes ที่ต้องการข้อมูล user
+// แก้ไข endpoint สำหรับดึงข้อมูลระบบ
 app.get('/api/system-records', getUserData, async (req, res) => {
   let conn;
   try {
@@ -211,6 +203,7 @@ app.get('/api/system-records', getUserData, async (req, res) => {
     // ใช้ข้อมูลแผนกจาก middleware
     const userDept = req.user.dept_change_code;
 
+    // เพิ่ม WHERE clause เพื่อกรองตามแผนก
     const [systems] = await conn.query(`
       SELECT 
         id,
@@ -241,20 +234,24 @@ app.get('/api/system-records', getUserData, async (req, res) => {
   }
 });
 
-// ใช้ middleware กับ route เพิ่มระบบด้วย
+// แก้ไข endpoint สำหรับเพิ่มระบบ
 app.post('/api/system-record', getUserData, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    const { nameTH, nameEN, dept_change_code, dept_full } = req.body;
+    const { nameTH, nameEN } = req.body;
 
     // Validate input
-    if (!nameTH || !nameEN || !dept_change_code || !dept_full) {
+    if (!nameTH || !nameEN) {
       return res.status(400).json({
         status: 'error',
-        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
+        message: 'กรุณากรอกชื่อระบบทั้งภาษาไทยและภาษาอังกฤษ'
       });
     }
+
+    // ใช้ข้อมูลแผนกจาก middleware
+    const dept_change_code = req.user.dept_change_code;
+    const dept_full = req.user.dept_full;
 
     // Insert new record
     const [result] = await conn.query(`
@@ -1079,48 +1076,20 @@ process.on('SIGINT', async () => {
 
 // เพิ่ม endpoint สำหรับดึงข้อมูล user และ role
 app.get('/api/data', async (req, res) => {
-  let conn;
   try {
-    conn = await pool.getConnection();
-    const [users] = await conn.query(`
-      SELECT 
-        u.emp_id,
-        u.first_name,
-        u.last_name,
-        u.dept_change_code,
-        u.dept_full,
-        u.role_id
-      FROM users u
-      WHERE u.emp_id = ?
-      LIMIT 1
-    `, [498146444]); // ใส่ emp_id ตามที่ต้องการ
-
-    if (users.length === 0) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบข้อมูลผู้ใช้'
-      });
-    }
-
-    // ส่งข้อมูลจริงจาก database โดยไม่ใช้ค่า default
-    res.json({
-      status: 'success',
-      data: {
-        dataDetail: users.map(user => ({
-          ...user,
-          role_id: Number(user.role_id)
-        }))
+    const response = await axios.get('http://localhost:3007/api/data', {
+      headers: {
+        Authorization: req.headers.authorization
       }
     });
 
+    res.json(response.data);
   } catch (error) {
     console.error('Error fetching user data:', error);
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้'
     });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
