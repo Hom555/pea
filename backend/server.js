@@ -165,20 +165,33 @@ const withConnection = async (req, res, next) => {
 };
 
 app.post('/api/system-record', async (req, res) => {
-  const { nameTH, nameEN } = req.body;
-
-  if (!nameTH || !nameEN) {
-    return res.status(400).send({ message: 'กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ' });
-  }
-
-  const query = 'INSERT INTO system_master (name_th, name_en)  VALUES (?, ?)';
   try {
-    const connection = await pool.getConnection();
-    const [result] = await connection.query(query, [nameTH, nameEN]);
-    res.status(200).send({ message: 'บันทึกข้อมูลสำเร็จ', id: result.insertId });
+    const { nameTH, nameEN, dept_change_code, dept_full } = req.body;
+    
+    if (!nameTH || !nameEN) {
+      return res.status(400).json({ 
+        status: 'error',
+        message: 'กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ' 
+      });
+    }
+
+    const [result] = await pool.query(`
+      INSERT INTO system_master (name_th, name_en, dept_change_code, dept_full)
+      VALUES (?, ?, ?, ?)
+    `, [nameTH, nameEN, dept_change_code || '', dept_full || '']);
+
+    res.json({
+      status: 'success',
+      message: 'บันทึกข้อมูลสำเร็จ',
+      id: result.insertId
+    });
+
   } catch (error) {
-    console.error('Error saving record:', error);
-    res.status(500).send({ message: 'ไม่สามารถบันทึกข้อมูลได้' });
+    console.error('Error saving system record:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกข้อมูลได้'
+    });
   }
 });
 
@@ -889,9 +902,11 @@ app.get('/api/admin-users', async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const [users] = await connection.query(`
-      SELECT u.*, r.name as role
+      SELECT 
+        u.*,
+        r.name as role_name
       FROM users u
-      JOIN roles r ON u.role_id = r.id
+      LEFT JOIN roles r ON u.role_id = r.id
       WHERE r.name IN ('admin', 'superadmin')
     `);
 

@@ -135,35 +135,39 @@ export default {
       editNameTH: "",
       editNameEN: "",
       searchQuery: "",
+      deptInfo: null,
+      nameTH: "",
+      nameEN: "",
+      isSubmitting: false,
+      showDeleteConfirm: false,
+      recordToDelete: null
     };
   },
   computed: {
-    ...mapGetters(['isSystemActive']),
-    systemId() {
-      return this.$route.params.id;
-    },
     filteredRecords() {
-      // กรองเฉพาะระบบที่เปิดใช้งานและตรงกับคำค้นหา
-      const activeRecords = this.systemRecords.filter(record => record.is_active === 1);
+      if (!this.deptInfo) return [];
       
-      if (!this.searchQuery) return activeRecords;
+      let records = this.systemRecords.filter(record => 
+        record.dept_change_code === this.deptInfo.dept_change_code
+      );
       
-      const query = this.searchQuery.toLowerCase();
-      return activeRecords.filter(
-        (record) =>
+      if (this.searchQuery) {
+        const query = this.searchQuery.toLowerCase();
+        records = records.filter(record =>
           record.name_th.toLowerCase().includes(query) ||
           record.name_en.toLowerCase().includes(query)
-      );
+        );
+      }
+      
+      return records;
     },
   },
   methods: {
-    ...mapActions(['updateSystemStatus']),
     async fetchSystemRecords() {
       try {
         const response = await axios.get(
           "http://localhost:8881/api/system-records"
         );
-        // เก็บเฉพาะระบบที่เปิดใช้งาน
         this.systemRecords = response.data;
       } catch (error) {
         console.error("ไม่สามารถดึงข้อมูลได้:", error);
@@ -186,17 +190,29 @@ export default {
     },
     async updateSystemRecord() {
       try {
-        await axios.put(
+        if (!this.deptInfo) {
+          this.toast.error("ไม่พบข้อมูลแผนก กรุณาลองใหม่อีกครั้ง");
+          return;
+        }
+
+        const response = await axios.put(
           `http://localhost:8881/api/system-record/${this.editRecordId}`,
           {
             nameTH: this.editNameTH,
             nameEN: this.editNameEN,
+            dept_change_code: this.deptInfo.dept_change_code,
+            dept_full: this.deptInfo.dept_full
           }
         );
-        this.fetchSystemRecords();
-        this.cancelEdit();
+
+        if (response.data.message === "อัปเดตข้อมูลสำเร็จ") {
+          this.toast.success("อัปเดตข้อมูลสำเร็จ");
+          await this.fetchSystemRecords();
+          this.cancelEdit();
+        }
       } catch (error) {
-        console.error("ไม่สามารถอัปเดตข้อมูลได้:", error);
+        console.error("Error:", error);
+        this.toast.error(error.response?.data?.message || "ไม่สามารถอัปเดตข้อมูลได้");
       }
     },
     cancelEdit() {
@@ -205,53 +221,101 @@ export default {
       this.editRecordId = null;
       this.editNameTH = "";
       this.editNameEN = "";
+      this.nameTH = "";
+      this.nameEN = "";
     },
-    async confirmDelete(record) {
-      if (confirm(`ต้องการลบระบบ "${record.name_th}" ใช่หรือไม่?`)) {
-        await this.deleteRecord(record.id);
+    confirmDelete(record) {
+      this.recordToDelete = record;
+      this.showDeleteConfirm = true;
+    },
+    cancelDelete() {
+      this.recordToDelete = null;
+      this.showDeleteConfirm = false;
+    },
+    async handleDelete() {
+      if (!this.recordToDelete) return;
+
+      try {
+        const response = await axios.delete(
+          `http://localhost:8881/api/system-record/${this.recordToDelete.id}`
+        );
+
+        if (response.data.message === 'ลบข้อมูลสำเร็จ') {
+          this.toast.success('ลบข้อมูลสำเร็จ');
+          await this.fetchSystemRecords();
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
+      } finally {
+        this.showDeleteConfirm = false;
+        this.recordToDelete = null;
       }
     },
     showAddForm() {
       this.isAdding = true;
-      this.editNameTH = "";
-      this.editNameEN = "";
+      this.nameTH = "";
+      this.nameEN = "";
     },
-    async addSystemRecord() {
+    async fetchDeptInfo() {
       try {
-        await axios.post("http://localhost:8881/api/system-record", {
-          nameTH: this.editNameTH,
-          nameEN: this.editNameEN,
-        });
-        await this.fetchSystemRecords();
-        this.cancelEdit();
+        const response = await axios.get("http://localhost:3007/api/data");
+        const employeeData = response.data?.data?.dataDetail[0];
+        if (employeeData) {
+          this.deptInfo = {
+            dept_change_code: employeeData.dept_change_code,
+            dept_full: employeeData.dept_full
+          };
+        }
       } catch (error) {
-        console.error("ไม่สามารถเพิ่มข้อมูลได้:", error);
-        alert("ไม่สามารถเพิ่มข้อมูลได้ กรุณาลองใหม่อีกครั้ง");
+        console.error("ไม่สามารถดึงข้อมูลแผนกได้:", error);
       }
     },
-  },
-  async created() {
-    try {
-      // ดึงข้อมูลสถานะระบบเมื่อโหลดหน้า
-      const response = await axios.get(`http://localhost:8881/api/system-records`);
-      const system = response.data.find(s => s.id === parseInt(this.systemId));
-      
-      // // อัพเดตสถานะใน Vuex store
-      // this.updateSystemStatus({
-      //   systemId: this.systemId,
-      //   status: system ? system.is_active === 1 : false
-      // });
+    async addSystemRecord() {
+      if (!this.nameTH || !this.nameEN) {
+        this.toast.error("กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ");
+        return;
+      }
 
-      // if (!system?.is_active) {
-      //   this.toast.warning('ระบบนี้ถูกปิดการใช้งาน');
-      // }
-    } catch (error) {
-      console.error('Error checking system status:', error);
-      this.toast.error('ไม่สามารถตรวจสอบสถานะระบบได้');
+      if (!this.deptInfo) {
+        this.toast.error("ไม่พบข้อมูลแผนก กรุณาลองใหม่อีกครั้ง");
+        return;
+      }
+
+      this.isSubmitting = true;
+
+      try {
+        const response = await axios.post("http://localhost:8881/api/system-record", {
+          nameTH: this.nameTH,
+          nameEN: this.nameEN,
+          dept_change_code: this.deptInfo.dept_change_code,
+          dept_full: this.deptInfo.dept_full
+        });
+
+        if (response.data.message === "บันทึกข้อมูลสำเร็จ") {
+          this.toast.success("บันทึกข้อมูลสำเร็จ");
+          await this.fetchSystemRecords();
+          this.cancelEdit();
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกข้อมูลได้");
+      } finally {
+        this.isSubmitting = false;
+      }
+    },
+    resetForm() {
+      this.nameTH = "";
+      this.nameEN = "";
+    },
+    cancelAdd() {
+      this.isAdding = false;
+      this.resetForm();
     }
   },
-  mounted() {
-    this.fetchSystemRecords();
+  async mounted() {
+    await this.fetchDeptInfo();
+    await this.fetchSystemRecords();
   },
 };
 </script>

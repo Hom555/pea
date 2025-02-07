@@ -9,118 +9,124 @@
       <button @click="toggleSidebar" class="toggle-btn">
         <i :class="isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
       </button>
-      </div>
+    </div>
 
-    <!-- เมนูหลัก -->
-    <nav class="sidebar-nav">
-      <!-- หน้าแรก -->
-      <router-link to="/" class="nav-item" exact-active-class="active">
-              <i class="fas fa-home"></i>
-        <span v-if="!isCollapsed">หน้าแรก</span>
-            </router-link>
+    <!-- ส่วนเนื้อหา wrapper -->
+    <div class="sidebar-content">
+      <!-- เมนูหลัก -->
+      <nav class="sidebar-nav">
+        <!-- หน้าแรก -->
+        <router-link to="/" class="nav-item" exact-active-class="active">
+                <i class="fas fa-home"></i>
+          <span v-if="!isCollapsed">หน้าแรก</span>
+              </router-link>
 
-      <!-- ข้อมูลระบบ -->
-      <div class="menu-group">
-        <div class="nav-item expandable" 
-              @click="toggleSubMenu('systemMenu')"
-             :class="{ 'active': subMenus.systemMenu }">
-              <i class="fas fa-cogs"></i>
-          <span v-if="!isCollapsed">ข้อมูลระบบ</span>
-          <i v-if="!isCollapsed" 
-             class="fas fa-chevron-right toggle-icon"
-             :class="{ 'rotated': subMenus.systemMenu }"></i>
-            </div>
-        <div class="sub-menu" v-show="!isCollapsed && subMenus.systemMenu">
-          <router-link to="/datasystemrecord" class="nav-item sub">
-                    <i class="fas fa-list-alt"></i>
-            <span v-if="!isCollapsed">รายการระบบ</span>
-                  </router-link>
-        </div>
-      </div>
-
-      <!-- อัพเดตข้อมูล -->
-      <div class="menu-group">
-        <div class="nav-item expandable"
-              @click="toggleSubMenu('updateDataMenu')"
-             :class="{ 'active': subMenus.updateDataMenu }">
-              <i class="fas fa-sync-alt"></i>
-          <span v-if="!isCollapsed">อัพเดตข้อมูล</span>
-          <i v-if="!isCollapsed"
-             class="fas fa-chevron-right toggle-icon"
-             :class="{ 'rotated': subMenus.updateDataMenu }"></i>
-            </div>
-        <div class="sub-menu" v-show="!isCollapsed && subMenus.updateDataMenu">
-          <router-link to="/system_details" class="nav-item sub">
-                    <i class="fas fa-upload"></i>
-            <span v-if="!isCollapsed">อัพเดตข้อมูล</span>
-                  </router-link>
-          <router-link to="/DataDisplay" class="nav-item sub">
-                    <i class="fas fa-database"></i>
-            <span v-if="!isCollapsed">ข้อมูลที่อัพเดต</span>
-                  </router-link>
-        </div>
-      </div>
-
-      <!-- กิจกรรม -->
-      <div class="menu-group">
-        <div class="nav-item expandable"
-              @click="toggleSubMenu('activityMenu')"
-             :class="{ 'active': subMenus.activityMenu }">
-              <i class="fas fa-calendar-check"></i>
-          <span v-if="!isCollapsed">กิจกรรม</span>
-          <i v-if="!isCollapsed"
-             class="fas fa-chevron-right toggle-icon"
-             :class="{ 'rotated': subMenus.activityMenu }"></i>
-            </div>
-        <div class="sub-menu" v-show="!isCollapsed && subMenus.activityMenu">
-          <router-link to="/system-activities" class="nav-item sub">
-                    <i class="fas fa-edit"></i>
-            <span v-if="!isCollapsed">บันทึกกิจกรรม</span>
-                  </router-link>
-          <router-link to="/Dataactivities" class="nav-item sub">
-                    <i class="fas fa-list"></i>
-            <span v-if="!isCollapsed">ข้อมูลกิจกรรม</span>
-                  </router-link>
-        </div>
-      </div>
-
-      <!-- Admin Section -->
-      <div v-if="isAdmin" class="admin-section">
-        <div class="section-title" v-if="!isCollapsed">
-          <span>ส่วนผู้ดูแลระบบ</span>
-            </div>
-        
-        <router-link to="/super-admin" class="nav-item">
-          <i class="fas fa-cog"></i>
-          <span v-if="!isCollapsed">จัดการระบบ</span>
-                  </router-link>
-
-        <router-link to="/user-management" class="nav-item">
-                    <i class="fas fa-users-cog"></i>
-          <span v-if="!isCollapsed">จัดการผู้ใช้</span>
-                  </router-link>
-
-        <router-link to="/super-admin/activities" class="nav-item" exact-active-class="active">
-          <i class="fas fa-chart-line"></i>
-          <span v-if="!isCollapsed">ภาพรวมกิจกรรม</span>
-                  </router-link>
-      </div>
-    </nav>
-
-    <!-- User Profile -->
-    <div class="user-profile">
-      <div class="profile-info" v-if="!isCollapsed">
-        <!-- <img :src="userAvatar" alt="User Avatar" class="avatar" /> -->
-        <div class="user-details">
-            <div class="user-name">{{ fullName }}</div>
-            <div class="user-role">{{ department }}</div>
+        <!-- ข้อมูลระบบ -->
+        <div class="menu-group">
+          <div class="nav-item expandable" 
+                @click="toggleSubMenu('systemMenu')"
+               :class="{ 'active': subMenus.systemMenu }">
+                <i class="fas fa-cogs"></i>
+            <span v-if="!isCollapsed">ข้อมูลระบบ</span>
+            <i v-if="!isCollapsed" 
+               class="fas fa-chevron-right toggle-icon"
+               :class="{ 'rotated': subMenus.systemMenu }"></i>
+              </div>
+          <div class="sub-menu" v-show="!isCollapsed && subMenus.systemMenu">
+            <router-link to="/datasystemrecord" class="nav-item sub">
+                      <i class="fas fa-list-alt"></i>
+              <span v-if="!isCollapsed">รายการระบบ</span>
+                    </router-link>
           </div>
+        </div>
+
+        <!-- อัพเดตข้อมูล -->
+        <div class="menu-group">
+          <div class="nav-item expandable"
+                @click="toggleSubMenu('updateDataMenu')"
+               :class="{ 'active': subMenus.updateDataMenu }">
+                <i class="fas fa-sync-alt"></i>
+            <span v-if="!isCollapsed">อัพเดตข้อมูล</span>
+            <i v-if="!isCollapsed"
+               class="fas fa-chevron-right toggle-icon"
+               :class="{ 'rotated': subMenus.updateDataMenu }"></i>
+              </div>
+          <div class="sub-menu" v-show="!isCollapsed && subMenus.updateDataMenu">
+            <router-link to="/system_details" class="nav-item sub">
+                      <i class="fas fa-upload"></i>
+              <span v-if="!isCollapsed">อัพเดตข้อมูล</span>
+                    </router-link>
+            <router-link to="/DataDisplay" class="nav-item sub">
+                      <i class="fas fa-database"></i>
+              <span v-if="!isCollapsed">ข้อมูลที่อัพเดต</span>
+                    </router-link>
+          </div>
+        </div>
+
+        <!-- กิจกรรม -->
+        <div class="menu-group">
+          <div class="nav-item expandable"
+                @click="toggleSubMenu('activityMenu')"
+               :class="{ 'active': subMenus.activityMenu }">
+                <i class="fas fa-calendar-check"></i>
+            <span v-if="!isCollapsed">กิจกรรม</span>
+            <i v-if="!isCollapsed"
+               class="fas fa-chevron-right toggle-icon"
+               :class="{ 'rotated': subMenus.activityMenu }"></i>
+              </div>
+          <div class="sub-menu" v-show="!isCollapsed && subMenus.activityMenu">
+            <router-link to="/system-activities" class="nav-item sub">
+                      <i class="fas fa-edit"></i>
+              <span v-if="!isCollapsed">บันทึกกิจกรรม</span>
+                    </router-link>
+            <router-link to="/Dataactivities" class="nav-item sub">
+                      <i class="fas fa-list"></i>
+              <span v-if="!isCollapsed">ข้อมูลกิจกรรม</span>
+                    </router-link>
+          </div>
+        </div>
+
+        <!-- Admin Section -->
+        <div v-if="isAdmin" class="admin-section">
+          <div class="section-title" v-if="!isCollapsed">
+            <span>ส่วนผู้ดูแลระบบ</span>
+          </div>
+          
+          <router-link to="/super-admin" class="nav-item">
+            <i class="fas fa-cog"></i>
+            <span v-if="!isCollapsed">จัดการระบบ</span>
+          </router-link>
+
+          <!-- แสดงเฉพาะ superadmin -->
+          <router-link 
+            v-if="userData.role_id === 3" 
+            to="/user-management" 
+            class="nav-item"
+          >
+            <i class="fas fa-users-cog"></i>
+            <span v-if="!isCollapsed">จัดการผู้ใช้</span>
+          </router-link>
+
+          <router-link to="/super-admin/activities" class="nav-item">
+            <i class="fas fa-chart-line"></i>
+            <span v-if="!isCollapsed">ภาพรวมกิจกรรม</span>
+          </router-link>
+        </div>
+      </nav>
+
+      <!-- User Profile -->
+      <div class="user-profile">
+        <div class="profile-info" v-if="!isCollapsed">
+          <div class="user-details">
+            <div class="username">{{ fullName }}</div>
+            <div class="department">{{ department }}</div>
+          </div>
+        </div>
+        <button @click="handleLogout" class="logout-btn" :title="isCollapsed ? 'ออกจากระบบ' : ''">
+          <i class="fas fa-sign-out-alt"></i>
+          <span v-if="!isCollapsed">ออกจากระบบ</span>
+        </button>
       </div>
-        <router-link to="/login" class="nav-item">
-      <button @click="logout" class="logout-btn" :title="isCollapsed ? 'ออกจากระบบ' : ''">
-        <i class="fas fa-sign-out-alt"></i>
-        <span v-if="!isCollapsed">ออกจากระบบ</span>
-      </button></router-link>
     </div>
   </div>
 </template>
@@ -133,7 +139,7 @@ export default {
   data() {
     return {
       logoSrc: require("@/assets/logo.png"),
-      sidebarOpen: false,
+      isCollapsed: false,
       subMenus: {
         systemMenu: false,
         updateDataMenu: false,
@@ -143,8 +149,20 @@ export default {
         fullName: "",
         department: "",
         empId: null,
-      },
+        role_id: null
+      }
     };
+  },
+  computed: {
+    fullName() {
+      return this.userData.fullName || "ไม่พบชื่อผู้ใช้งาน";
+    },
+    department() {
+      return this.userData.department || "ไม่พบแผนก";
+    },
+    isAdmin() {
+      return this.userData.role_id === 2 || this.userData.role_id === 3;
+    }
   },
   async created() {
     try {
@@ -162,40 +180,27 @@ export default {
         console.log('User data:', user);
 
         if (user.emp_id) {
+          const title = user.title_s_desc ? `${user.title_s_desc} ` : '';
+          const firstName = user.first_name || '';
+          const lastName = user.last_name || '';
+          
           this.userData = {
-            fullName: `${user.title_s_desc || ''}${user.first_name} ${user.last_name}`.trim(),
+            fullName: `${title}${firstName} ${lastName}`.trim(),
             department: user.dept_full || "ไม่ระบุแผนก",
             empId: user.emp_id,
+            role_id: user.role_id
           };
           console.log('Updated userData:', this.userData);
+          console.log('Is Admin:', this.isAdmin);
         }
-      } else {
-        console.warn("ไม่พบข้อมูลผู้ใช้งานหรือข้อมูลว่าง");
       }
     } catch (error) {
-      console.error('Error fetching user data:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
-      if (error.response?.status === 401) {
-        console.error("Token หมดอายุ กรุณาเข้าสู่ระบบใหม่");
-        this.$router.push("/login");
-      }
+      console.error('Error fetching user data:', error);
     }
-  },
-  computed: {
-    fullName() {
-      return this.userData.empId ? this.userData.fullName : "ไม่พบชื่อผู้ใช้งาน";
-    },
-    department() {
-      return this.userData.empId ? this.userData.department : "ไม่พบแผนก";
-    },
   },
   methods: {
     toggleSidebar() {
-      this.sidebarOpen = !this.sidebarOpen;
+      this.isCollapsed = !this.isCollapsed;
     },
     toggleSubMenu(menu) {
       Object.keys(this.subMenus).forEach((key) => {
@@ -204,14 +209,12 @@ export default {
       this.subMenus[menu] = !this.subMenus[menu];
     },
     handleLogout() {
-      if (confirm("ต้องการออกจากระบบใช่หรือไม่?")) {
-        localStorage.removeItem("token");
-        this.$router.push("/login").catch((err) =>
-          console.error("Error navigating to login:", err)
-        );
+      if (confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
+        localStorage.removeItem('token');
+        this.$router.push('/login');
       }
-    },
-  },
+    }
+  }
 };
 </script>
 
@@ -219,16 +222,100 @@ export default {
 .sidebar {
   width: 260px;
   height: 100vh;
-  background: #ffffff;
-  color: #475569;
+  background: white;
+  border-right: 1px solid #e2e8f0;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 1000;
-  border-right: 1px solid #e2e8f0;
+}
+
+/* เพิ่ม wrapper สำหรับเนื้อหาทั้งหมด */
+.sidebar-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ปรับ sidebar-nav ให้ scroll ได้ */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* ปรับ user-profile ให้อยู่ด้านล่างเสมอ */
+.user-profile {
+  padding: 1rem;
+  border-top: 1px solid #e2e8f0;
+  background: white;
+  margin-top: auto;
+}
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.user-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.username {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.department {
+  color: #64748b;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 0.8rem;
+  border: none;
+  background: none;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 6px;
+}
+
+.logout-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* ปรับปรุง collapsed state */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.collapsed .profile-info {
+  display: none;
+}
+
+.sidebar.collapsed .logout-btn {
+  justify-content: center;
+  padding: 0.8rem;
+}
+
+.sidebar.collapsed .logout-btn span {
+  display: none;
 }
 
 /* Logo Section */
@@ -265,12 +352,6 @@ export default {
 }
 
 /* Navigation Items */
-.sidebar-nav {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-}
-
 .nav-item {
   display: flex;
   align-items: center;
@@ -324,80 +405,25 @@ export default {
 
 /* Admin Section */
 .admin-section {
+  margin-top: 1rem;
   padding: 1rem;
   background: #f8fafc;
-  margin-top: auto;
+  border-radius: 8px;
 }
 
 .section-title {
   font-size: 0.9rem;
   color: #94a3b8;
   margin-bottom: 0.8rem;
+  padding-left: 0.5rem;
 }
 
-/* User Profile */
-.user-profile {
-  padding: 1rem;
-  border-top: 1px solid #e2e8f0;
-  margin-top: auto;
+.admin-section .nav-item {
+  margin-bottom: 0.5rem;
 }
 
-.profile-info {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  margin-bottom: 0.8rem;
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.user-details {
-  flex: 1;
-  min-width: 0; /* สำคัญสำหรับ text-overflow */
-}
-
-.username {
-  display: block;
-  font-weight: 600;
-  color: #1e293b;
-  font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px; /* จำกัดความกว้างสูงสุด */
-}
-
-.role {
-  display: block;
-  color: #64748b;
-  font-size: 0.8rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.logout-btn {
-  width: 100%;
-  padding: 0.8rem;
-  border: none;
-  background: none;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  border-radius: 6px;
-}
-
-.logout-btn:hover {
-  background: #f1f5f9;
-  color: #1e293b;
+.admin-section .nav-item:last-child {
+  margin-bottom: 0;
 }
 
 /* Scrollbar */
@@ -432,46 +458,5 @@ export default {
 .toggle-btn:hover {
   background: #f1f5f9;
   color: #64748b;
-}
-
-/* Collapsed State */
-.sidebar.collapsed {
-  width: 70px;
-}
-
-.sidebar.collapsed .system-name,
-.sidebar.collapsed .nav-item span,
-.sidebar.collapsed .section-title,
-.sidebar.collapsed .profile-info {
-  display: none;
-}
-
-.sidebar.collapsed .nav-item {
-  justify-content: center;
-  padding: 0.8rem;
-}
-
-.sidebar.collapsed .nav-item i {
-  margin: 0;
-}
-
-.sidebar.collapsed .sub-menu {
-  margin-left: 0;
-}
-
-/* Animation for profile section */
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.profile-info {
-  animation: slideUp 0.3s ease-out;
 }
 </style>

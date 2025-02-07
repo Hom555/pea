@@ -19,6 +19,7 @@ axios.get('http://localhost:3007/api/data')
       console.log('Last Name:', employee.last_name);
       console.log('Employee ID:', employee.emp_id);
       console.log('Department:', employee.dept_full);
+      console.log('Role:', employee.role);
       console.log('------------------------');
 
       // สร้าง full name ตามรูปแบบที่ใช้ใน Sidebar
