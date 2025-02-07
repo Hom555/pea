@@ -1,5 +1,6 @@
 <template>
   <div class="container">
+  
     <div class="header">
       <h1>ข้อมูลระบบ</h1>
       <p class="subtitle">รายการระบบงาน</p>
@@ -26,6 +27,7 @@
             <tr>
               <th class="th-no">ลำดับ</th>
               <th class="th-name">ชื่อระบบงาน</th>
+              <th class="th-dept">แผนก</th>
             </tr>
           </thead>
           <tbody>
@@ -37,6 +39,7 @@
                   <div class="name-en">{{ record.name_en }}</div>
                 </div>
               </td>
+              <td>{{ record.dept_full }}</td>
               <td>
                 <div class="action-buttons">
                   <button
@@ -81,7 +84,8 @@
             >
             <input
               type="text"
-              v-model="editNameTH"
+              :value="isAdding ? nameTH : editNameTH"
+              @input="e => isAdding ? nameTH = e.target.value : editNameTH = e.target.value"
               id="editNameTH"
               required
               class="form-input"
@@ -94,7 +98,8 @@
             >
             <input
               type="text"
-              v-model="editNameEN"
+              :value="isAdding ? nameEN : editNameEN"
+              @input="e => isAdding ? nameEN = e.target.value : editNameEN = e.target.value"
               id="editNameEN"
               required
               class="form-input"
@@ -105,12 +110,37 @@
             <button type="button" @click="cancelEdit" class="btn-cancel">
               <i class="fas fa-times"></i> ยกเลิก
             </button>
-            <button type="submit" class="btn-submit">
+            <button type="submit" class="btn-submit" :disabled="isSubmitting">
               <i class="fas fa-save"></i>
               {{ isAdding ? "เพิ่มระบบ" : "บันทึก" }}
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div v-if="showDeleteConfirm" class="delete-confirm-overlay">
+      <div class="delete-confirm-dialog">
+        <div class="dialog-header">
+          <i class="fas fa-exclamation-triangle warning-icon"></i>
+          <h3>ยืนยันการลบข้อมูล</h3>
+        </div>
+        
+        <div class="dialog-content">
+          <p>คุณต้องการลบระบบ "{{ recordToDelete?.name_th }}" ใช่หรือไม่?</p>
+          <p class="warning-text">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+        </div>
+
+        <div class="dialog-actions">
+          <button @click="cancelDelete" class="btn-cancel">
+            <i class="fas fa-times"></i>
+            ยกเลิก
+          </button>
+          <button @click="handleDelete" class="btn-confirm-delete">
+            <i class="fas fa-trash-alt"></i>
+            ยืนยันการลบ
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -134,23 +164,36 @@ export default {
       editRecordId: null,
       editNameTH: "",
       editNameEN: "",
-      searchQuery: "",
-      deptInfo: null,
       nameTH: "",
       nameEN: "",
-      isSubmitting: false,
-      showDeleteConfirm: false,
-      recordToDelete: null
+      searchQuery: "",
+      userDept: {
+        dept_change_code: '',
+        dept_full: ''
+      },
+      isSubmitting: false
     };
   },
   computed: {
+    ...mapGetters(['isSystemActive']),
+    systemId() {
+      return this.$route.params.id;
+    },
     filteredRecords() {
-      if (!this.deptInfo) return [];
+      if (!this.systemRecords) return [];
       
-      let records = this.systemRecords.filter(record => 
-        record.dept_change_code === this.deptInfo.dept_change_code
-      );
+      let records = [...this.systemRecords];
       
+      // กรองตาม dept_change_code ของผู้ใช้
+      if (this.userDept.dept_change_code) {
+        console.log('Filtering by dept:', this.userDept.dept_change_code);
+        records = records.filter(record => {
+          console.log('Record dept:', record.dept_change_code);
+          return record.dept_change_code === this.userDept.dept_change_code;
+        });
+      }
+      
+      // กรองตามคำค้นหา
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         records = records.filter(record =>
@@ -159,27 +202,31 @@ export default {
         );
       }
       
+      console.log('Filtered records:', records.length);
       return records;
     },
   },
   methods: {
+    ...mapActions(['updateSystemStatus']),
     async fetchSystemRecords() {
       try {
-        const response = await axios.get(
-          "http://localhost:8881/api/system-records"
-        );
-        this.systemRecords = response.data;
+        console.log('Fetching system records...');
+        const response = await axios.get("http://localhost:8088/api/system-records");
+        console.log('Response:', response.data);
+        this.systemRecords = response.data || [];
       } catch (error) {
-        console.error("ไม่สามารถดึงข้อมูลได้:", error);
+        console.error("Error fetching records:", error);
         this.toast.error("ไม่สามารถดึงข้อมูลได้");
+        this.systemRecords = [];
       }
     },
     async deleteRecord(id) {
       try {
-        await axios.delete(`http://localhost:8881/api/system-record/${id}`);
-        this.fetchSystemRecords();
+        await axios.delete(`http://localhost:8088/api/system-record/${id}`);
+        await this.fetchSystemRecords();
       } catch (error) {
-        console.error("ไม่สามารถลบข้อมูลได้:", error);
+        console.error("Error deleting record:", error);
+        this.toast.error("ไม่สามารถลบข้อมูลได้");
       }
     },
     editRecord(record) {
@@ -190,29 +237,18 @@ export default {
     },
     async updateSystemRecord() {
       try {
-        if (!this.deptInfo) {
-          this.toast.error("ไม่พบข้อมูลแผนก กรุณาลองใหม่อีกครั้ง");
-          return;
-        }
-
-        const response = await axios.put(
-          `http://localhost:8881/api/system-record/${this.editRecordId}`,
+        await axios.put(
+          `http://localhost:8088/api/system-record/${this.editRecordId}`,
           {
             nameTH: this.editNameTH,
             nameEN: this.editNameEN,
-            dept_change_code: this.deptInfo.dept_change_code,
-            dept_full: this.deptInfo.dept_full
           }
         );
-
-        if (response.data.message === "อัปเดตข้อมูลสำเร็จ") {
-          this.toast.success("อัปเดตข้อมูลสำเร็จ");
-          await this.fetchSystemRecords();
-          this.cancelEdit();
-        }
+        await this.fetchSystemRecords();
+        this.cancelEdit();
       } catch (error) {
-        console.error("Error:", error);
-        this.toast.error(error.response?.data?.message || "ไม่สามารถอัปเดตข้อมูลได้");
+        console.error("Error updating record:", error);
+        this.toast.error("ไม่สามารถอัปเดตข้อมูลได้");
       }
     },
     cancelEdit() {
@@ -223,103 +259,107 @@ export default {
       this.editNameEN = "";
       this.nameTH = "";
       this.nameEN = "";
+      this.isSubmitting = false;
     },
-    confirmDelete(record) {
-      this.recordToDelete = record;
-      this.showDeleteConfirm = true;
-    },
-    cancelDelete() {
-      this.recordToDelete = null;
-      this.showDeleteConfirm = false;
-    },
-    async handleDelete() {
-      if (!this.recordToDelete) return;
-
-      try {
-        const response = await axios.delete(
-          `http://localhost:8881/api/system-record/${this.recordToDelete.id}`
-        );
-
-        if (response.data.message === 'ลบข้อมูลสำเร็จ') {
-          this.toast.success('ลบข้อมูลสำเร็จ');
-          await this.fetchSystemRecords();
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
-      } finally {
-        this.showDeleteConfirm = false;
-        this.recordToDelete = null;
+    async confirmDelete(record) {
+      if (confirm(`ต้องการลบระบบ "${record.name_th}" ใช่หรือไม่?`)) {
+        await this.deleteRecord(record.id);
       }
     },
     showAddForm() {
       this.isAdding = true;
       this.nameTH = "";
       this.nameEN = "";
-    },
-    async fetchDeptInfo() {
-      try {
-        const response = await axios.get("http://localhost:3007/api/data");
-        const employeeData = response.data?.data?.dataDetail[0];
-        if (employeeData) {
-          this.deptInfo = {
-            dept_change_code: employeeData.dept_change_code,
-            dept_full: employeeData.dept_full
-          };
-        }
-      } catch (error) {
-        console.error("ไม่สามารถดึงข้อมูลแผนกได้:", error);
-      }
+      this.editNameTH = "";
+      this.editNameEN = "";
     },
     async addSystemRecord() {
-      if (!this.nameTH || !this.nameEN) {
-        this.toast.error("กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ");
-        return;
-      }
-
-      if (!this.deptInfo) {
-        this.toast.error("ไม่พบข้อมูลแผนก กรุณาลองใหม่อีกครั้ง");
-        return;
-      }
-
-      this.isSubmitting = true;
-
       try {
-        const response = await axios.post("http://localhost:8881/api/system-record", {
-          nameTH: this.nameTH,
-          nameEN: this.nameEN,
-          dept_change_code: this.deptInfo.dept_change_code,
-          dept_full: this.deptInfo.dept_full
+        if (!this.editNameTH || !this.editNameEN) {
+          this.toast.error("กรุณากรอกชื่อระบบทั้งภาษาไทยและภาษาอังกฤษ");
+          return;
+        }
+
+        console.log('Sending data:', {
+          nameTH: this.editNameTH,
+          nameEN: this.editNameEN,
+          dept_change_code: this.userDept.dept_change_code || '530105002000301',
+          dept_full: this.userDept.dept_full || 'แผนกพัฒนาระบบงานด้านการเงิน'
         });
 
-        if (response.data.message === "บันทึกข้อมูลสำเร็จ") {
-          this.toast.success("บันทึกข้อมูลสำเร็จ");
+        const response = await axios.post("http://localhost:8088/api/system-record", {
+          nameTH: this.editNameTH.trim(),
+          nameEN: this.editNameEN.trim(),
+          dept_change_code: this.userDept.dept_change_code || '530105002000301',
+          dept_full: this.userDept.dept_full || 'แผนกพัฒนาระบบงานด้านการเงิน'
+        });
+
+        console.log('Response:', response.data);
+
+        if (response.data.status === 'success') {
+          this.toast.success('บันทึกข้อมูลสำเร็จ');
           await this.fetchSystemRecords();
           this.cancelEdit();
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถบันทึกข้อมูลได้');
         }
       } catch (error) {
-        console.error("Error:", error);
-        this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกข้อมูลได้");
-      } finally {
-        this.isSubmitting = false;
+        console.error("Error adding system:", error);
+        this.toast.error(error.response?.data?.message || error.message || "ไม่สามารถเพิ่มข้อมูลได้");
       }
     },
-    resetForm() {
-      this.nameTH = "";
-      this.nameEN = "";
+    async fetchUserDept() {
+      try {
+        console.log('Fetching user department...');
+        const response = await axios.get("http://localhost:8088/api/data");
+        console.log('User data response:', response.data);
+        
+        if (response.data?.status === 'success' && response.data?.data?.dataDetail?.[0]) {
+          const userData = response.data.data.dataDetail[0];
+          this.userDept = {
+            dept_change_code: userData.dept_change_code || '001',
+            dept_full: userData.dept_full || 'แผนกเทคโนโลยีสารสนเทศ'
+          };
+          console.log('Updated user department:', this.userDept);
+        } else {
+          throw new Error('ไม่พบข้อมูลแผนก');
+        }
+      } catch (error) {
+        console.error("Error fetching user department:", error);
+        this.toast.error("ไม่สามารถดึงข้อมูลแผนกได้");
+        // ใช้ค่าเริ่มต้น
+        this.userDept = {
+          dept_change_code: '001',
+          dept_full: 'แผนกเทคโนโลยีสารสนเทศ'
+        };
+      }
     },
-    cancelAdd() {
-      this.isAdding = false;
-      this.resetForm();
+  },
+  async created() {
+    try {
+      const response = await axios.get(`http://localhost:8088/api/system-records`);
+      const system = response.data.find(s => s.id === parseInt(this.systemId));
+      
+      if (!system?.is_active) {
+        this.toast.warning('ระบบนี้ถูกปิดการใช้งาน');
+      }
+    } catch (error) {
+      console.error('Error checking system status:', error);
+      this.toast.error('ไม่สามารถตรวจสอบสถานะระบบได้');
     }
   },
   async mounted() {
-    await this.fetchDeptInfo();
-    await this.fetchSystemRecords();
+    try {
+      console.log('Component mounting...');
+      await this.fetchUserDept();
+      await this.fetchSystemRecords();
+    } catch (error) {
+      console.error("Error in mounted:", error);
+      this.toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
+    }
   },
 };
 </script>
-
 <style scoped>
 .container {
   max-width: 1000px;

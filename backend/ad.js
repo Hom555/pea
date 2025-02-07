@@ -16,12 +16,14 @@ const mockEmployees = [
   },
   // {
   //   emp_id: 498146445,
+  //   dept_change_code: "530105002000302",
   //   dept_full: "แผนกการเงิน",
   //   first_name: "ปิยะพร",
   //   last_name: "สุขสวัสดิ์"
   // },
   // {
   //   emp_id: 498146446,
+  //   dept_change_code: "530105002000303",
   //   dept_full: "แผนกIT",
   //   first_name: "ธีรภัทร",
   //   last_name: "ทองประภา"

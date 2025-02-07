@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const app = express();
-const port = 8881;
+const port = 8088;
 const activitiesRouter = require('./routes/activities');
 const ad = require('./ad');
 const fileUpload = require('express-fileupload');
@@ -24,9 +24,8 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-  origin: 'http://localhost:8082',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  origin: ['http://localhost:8080', 'http://localhost:8082'],
+  credentials: true
 }));
 
 app.use(express.json());
@@ -132,23 +131,15 @@ const pool = mysql.createPool({
   password: '12345678', 
   database: 'PEA',        
   waitForConnections: true,
-  connectionLimit: 50,         
-  queueLimit: 0,
-  enableKeepAlive: true,      
-  keepAliveInitialDelay: 0,   
-  multipleStatements: true   
+  connectionLimit: 10,     // ลดจำนวน connection ลง    
+  queueLimit: 0
 });
 
-// ตรวจสอบการเชื่อมต่อฐานข้อมูลเป็นระยะ
-setInterval(async () => {
-  try {
-    const conn = await pool.getConnection();
-    await conn.ping();
-    conn.release();
-  } catch (err) {
-    console.error('Database ping error:', err);
-  }
-}, 30000); // ping ทุก 30 วินาที
+// เพิ่ม error handler สำหรับ pool
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
 // Middleware สำหรับจัดการ connection
 const withConnection = async (req, res, next) => {
@@ -165,20 +156,23 @@ const withConnection = async (req, res, next) => {
 };
 
 app.post('/api/system-record', async (req, res) => {
+  let conn;
   try {
+    conn = await pool.getConnection();
     const { nameTH, nameEN, dept_change_code, dept_full } = req.body;
-    
+
     if (!nameTH || !nameEN) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         status: 'error',
-        message: 'กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ' 
+        message: 'กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ'
       });
     }
 
-    const [result] = await pool.query(`
-      INSERT INTO system_master (name_th, name_en, dept_change_code, dept_full)
-      VALUES (?, ?, ?, ?)
-    `, [nameTH, nameEN, dept_change_code || '', dept_full || '']);
+    const [result] = await conn.query(`
+      INSERT INTO system_master 
+      (name_th, name_en, is_active, dept_change_code, dept_full) 
+      VALUES (?, ?, 1, ?, ?)
+    `, [nameTH, nameEN, dept_change_code, dept_full]);
 
     res.json({
       status: 'success',
@@ -187,28 +181,14 @@ app.post('/api/system-record', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error saving system record:', error);
+    console.error('Error saving system:', error);
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถบันทึกข้อมูลได้'
+      message: 'ไม่สามารถบันทึกข้อมูลได้',
+      error: error.message
     });
-  }
-});
-
-app.delete('/api/system-record/:id', async (req, res) => {
-  const id = req.params.id;
-
-  const query = 'DELETE FROM system_master WHERE id = ?';
-  try {
-    const connection = await pool.getConnection();
-    const [result] = await connection.query(query, [id]);
-    if (result.affectedRows === 0) {
-      return res.status(404).send({ message: 'ไม่พบข้อมูลที่ต้องการลบ' });
-    }
-    res.status(200).send({ message: 'ลบข้อมูลสำเร็จ' });
-  } catch (error) {
-    console.error('Error deleting record:', error);
-    res.status(500).send({ message: 'ไม่สามารถลบข้อมูลได้' });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -216,14 +196,22 @@ app.put('/api/system-record/:id', async (req, res) => {
   const id = req.params.id;
   const { nameTH, nameEN } = req.body;
 
-  const query = 'UPDATE system_master SET name_th = ?, name_en = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
   try {
-    const connection = await pool.getConnection();
-    const [result] = await connection.query(query, [nameTH, nameEN, id]);
+    const query = `
+      UPDATE system_master 
+      SET name_th = ?, 
+          name_en = ?, 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `;
+
+    const [result] = await pool.query(query, [nameTH, nameEN, id]);
+    
     if (result.affectedRows === 0) {
       return res.status(404).send({ message: 'ไม่พบข้อมูลที่ต้องการอัปเดต' });
     }
     res.status(200).send({ message: 'อัปเดตข้อมูลสำเร็จ' });
+
   } catch (error) {
     console.error('Error updating record:', error);
     res.status(500).send({ message: 'ไม่สามารถอัปเดตข้อมูลได้' });
@@ -232,32 +220,38 @@ app.put('/api/system-record/:id', async (req, res) => {
 
 // API endpoint สำหรับดึงข้อมูลระบบทั้งหมด
 app.get('/api/system-records', async (req, res) => {
+  let conn;
   try {
-    console.log('Fetching system records...');
-    
-    const connection = await pool.getConnection();
-    const query = `
+    conn = await pool.getConnection();
+    console.log('Connected to database');
+
+    const [systems] = await conn.query(`
       SELECT 
         id,
         name_th,
         name_en,
-        is_active,
+        dept_change_code,
+        dept_full,
         created_at,
-        updated_at
+        updated_at,
+        is_active
       FROM system_master
+      WHERE is_active = 1
       ORDER BY created_at DESC
-    `;
-    
-    const [rows] = await connection.query(query);
-    console.log('Fetched records:', rows);
-    res.status(200).json(rows);
+    `);
+
+    console.log('Fetched systems:', systems.length);
+    res.json(systems);
+
   } catch (error) {
-    console.error('Error fetching system records:', error);
+    console.error('Error fetching systems:', error);
     res.status(500).json({ 
-      success: false,
+      status: 'error',
       message: 'ไม่สามารถดึงข้อมูลได้',
       error: error.message 
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -1014,5 +1008,159 @@ process.on('SIGINT', async () => {
   } catch (err) {
     console.error('Error closing pool:', err);
     process.exit(1);
+  }
+});
+
+// เพิ่ม endpoint สำหรับดึงข้อมูล user และ role
+app.get('/api/data', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const [users] = await conn.query(`
+      SELECT 
+        u.emp_id,
+        u.first_name,
+        u.last_name,
+        u.dept_change_code,
+        u.dept_full,
+        u.role_id
+      FROM users u
+      WHERE u.emp_id = ?
+      LIMIT 1
+    `, [498146444]); // ใส่ emp_id ตามที่ต้องการ
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลผู้ใช้'
+      });
+    }
+
+    res.json({
+      status: 'success',
+      data: {
+        dataDetail: users.map(user => ({
+          ...user,
+          role_id: Number(user.role_id),
+          dept_change_code: user.dept_change_code || '530105002000301',
+          dept_full: user.dept_full || 'แผนกพัฒนาระบบงานด้านการเงิน'
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// เพิ่ม endpoint สำหรับตรวจสอบสิทธิ์
+app.get('/api/check-permission', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [user] = await connection.query(`
+      SELECT 
+        u.*,
+        r.id as role_id,
+        r.name as role_name
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.emp_id = ?
+    `, [req.user?.emp_id]);
+
+    if (user.length === 0) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์เข้าถึง'
+      });
+    }
+
+    const permissions = {
+      canManageSystem: user[0].role_id === 2 || user[0].role_id === 3,
+      canManageUsers: user[0].role_id === 3,
+      isAdmin: user[0].role_id === 2 || user[0].role_id === 3
+    };
+
+    res.json({
+      status: 'success',
+      data: permissions
+    });
+
+  } catch (error) {
+    console.error('Error checking permissions:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถตรวจสอบสิทธิ์ได้'
+    });
+  }
+});
+
+// เพิ่ม middleware สำหรับตรวจสอบ token
+const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'ไม่พบ token'
+      });
+    }
+
+    // ตรวจสอบ token และดึงข้อมูล user
+    // (ต้องเพิ่มการ implement ตรวจสอบ token จริงๆ)
+    const userData = await verifyToken(token);
+    req.user = userData;
+    next();
+
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(401).json({
+      status: 'error',
+      message: 'ไม่มีสิทธิ์เข้าถึง'
+    });
+  }
+};
+
+// ใช้ middleware กับ routes ที่ต้องการตรวจสอบสิทธิ์
+// app.use('/api/data', authMiddleware);
+// app.use('/api/check-permission', authMiddleware);
+
+// แก้ไข endpoint สำหรับลบระบบ
+app.delete('/api/system-record/:id', async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [result] = await connection.query(
+        'DELETE FROM system_master WHERE id = ?',
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'ไม่พบข้อมูลที่ต้องการลบ'
+        });
+      }
+
+      res.json({
+        status: 'success',
+        message: 'ลบข้อมูลสำเร็จ'
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error deleting system record:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถลบข้อมูลได้'
+    });
   }
 });
