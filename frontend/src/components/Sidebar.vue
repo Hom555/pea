@@ -150,7 +150,8 @@ export default {
         department: "",
         empId: null,
         role_id: null
-      }
+      },
+      isAdmin: false
     };
   },
   computed: {
@@ -190,9 +191,21 @@ export default {
             empId: user.emp_id,
             role_id: user.role_id
           };
+
+          // เก็บข้อมูลแผนกใน store
+          this.$store.dispatch('updateUserDepartment', {
+            dept_change_code: user.dept_change_code,
+            dept_full: user.dept_full
+          });
+
           console.log('Updated userData:', this.userData);
-          console.log('Is Admin:', this.isAdmin);
         }
+      }
+
+      // ตรวจสอบสิทธิ์
+      const permResponse = await axios.get('http://localhost:8088/api/check-permission');
+      if (permResponse.data.status === 'success') {
+        this.isAdmin = permResponse.data.data.isAdmin;
       }
     } catch (error) {
       console.error('Error fetching user data:', error);

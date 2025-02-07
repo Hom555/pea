@@ -167,15 +167,12 @@ export default {
       nameTH: "",
       nameEN: "",
       searchQuery: "",
-      userDept: {
-        dept_change_code: '',
-        dept_full: ''
-      },
-      isSubmitting: false
+      isSubmitting: false,
+      lastInsertId: null
     };
   },
   computed: {
-    ...mapGetters(['isSystemActive']),
+    ...mapGetters(['isSystemActive', 'getUserDepartment']),
     systemId() {
       return this.$route.params.id;
     },
@@ -183,15 +180,6 @@ export default {
       if (!this.systemRecords) return [];
       
       let records = [...this.systemRecords];
-      
-      // กรองตาม dept_change_code ของผู้ใช้
-      if (this.userDept.dept_change_code) {
-        console.log('Filtering by dept:', this.userDept.dept_change_code);
-        records = records.filter(record => {
-          console.log('Record dept:', record.dept_change_code);
-          return record.dept_change_code === this.userDept.dept_change_code;
-        });
-      }
       
       // กรองตามคำค้นหา
       if (this.searchQuery) {
@@ -213,7 +201,9 @@ export default {
         console.log('Fetching system records...');
         const response = await axios.get("http://localhost:8088/api/system-records");
         console.log('Response:', response.data);
-        this.systemRecords = response.data || [];
+        
+        // เรียงข้อมูลตาม ID จากมากไปน้อย
+        this.systemRecords = (response.data || []).sort((a, b) => b.id - a.id);
       } catch (error) {
         console.error("Error fetching records:", error);
         this.toast.error("ไม่สามารถดึงข้อมูลได้");
@@ -270,68 +260,55 @@ export default {
       this.isAdding = true;
       this.nameTH = "";
       this.nameEN = "";
-      this.editNameTH = "";
-      this.editNameEN = "";
     },
     async addSystemRecord() {
       try {
-        if (!this.editNameTH || !this.editNameEN) {
+        if (!this.nameTH || !this.nameEN) {
           this.toast.error("กรุณากรอกชื่อระบบทั้งภาษาไทยและภาษาอังกฤษ");
           return;
         }
 
-        console.log('Sending data:', {
-          nameTH: this.editNameTH,
-          nameEN: this.editNameEN,
-          dept_change_code: this.userDept.dept_change_code || '530105002000301',
-          dept_full: this.userDept.dept_full || 'แผนกพัฒนาระบบงานด้านการเงิน'
-        });
+        const department = this.getUserDepartment;
+        if (!department?.dept_change_code || !department?.dept_full) {
+          console.error('Department info missing:', department);
+          this.toast.error("ข้อมูลแผนกไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง");
+          return;
+        }
 
-        const response = await axios.post("http://localhost:8088/api/system-record", {
-          nameTH: this.editNameTH.trim(),
-          nameEN: this.editNameEN.trim(),
-          dept_change_code: this.userDept.dept_change_code || '530105002000301',
-          dept_full: this.userDept.dept_full || 'แผนกพัฒนาระบบงานด้านการเงิน'
-        });
+        this.isSubmitting = true;
 
+        const data = {
+          nameTH: this.nameTH.trim(),
+          nameEN: this.nameEN.trim(),
+          dept_change_code: department.dept_change_code,
+          dept_full: department.dept_full
+        };
+
+        console.log('Sending data:', data);
+
+        const response = await axios.post("http://localhost:8088/api/system-record", data);
         console.log('Response:', response.data);
 
         if (response.data.status === 'success') {
+          const newRecord = {
+            id: response.data.id,
+            name_th: this.nameTH,
+            name_en: this.nameEN,
+            dept_change_code: department.dept_change_code,
+            dept_full: department.dept_full,
+            created_at: new Date().toISOString()
+          };
+
+          this.systemRecords = [newRecord, ...this.systemRecords];
           this.toast.success('บันทึกข้อมูลสำเร็จ');
-          await this.fetchSystemRecords();
           this.cancelEdit();
-        } else {
-          throw new Error(response.data.message || 'ไม่สามารถบันทึกข้อมูลได้');
         }
       } catch (error) {
         console.error("Error adding system:", error);
-        this.toast.error(error.response?.data?.message || error.message || "ไม่สามารถเพิ่มข้อมูลได้");
-      }
-    },
-    async fetchUserDept() {
-      try {
-        console.log('Fetching user department...');
-        const response = await axios.get("http://localhost:8088/api/data");
-        console.log('User data response:', response.data);
-        
-        if (response.data?.status === 'success' && response.data?.data?.dataDetail?.[0]) {
-          const userData = response.data.data.dataDetail[0];
-          this.userDept = {
-            dept_change_code: userData.dept_change_code || '001',
-            dept_full: userData.dept_full || 'แผนกเทคโนโลยีสารสนเทศ'
-          };
-          console.log('Updated user department:', this.userDept);
-        } else {
-          throw new Error('ไม่พบข้อมูลแผนก');
-        }
-      } catch (error) {
-        console.error("Error fetching user department:", error);
-        this.toast.error("ไม่สามารถดึงข้อมูลแผนกได้");
-        // ใช้ค่าเริ่มต้น
-        this.userDept = {
-          dept_change_code: '001',
-          dept_full: 'แผนกเทคโนโลยีสารสนเทศ'
-        };
+        const errorMessage = error.response?.data?.message || "ไม่สามารถบันทึกข้อมูลได้";
+        this.toast.error(errorMessage);
+      } finally {
+        this.isSubmitting = false;
       }
     },
   },
@@ -351,7 +328,6 @@ export default {
   async mounted() {
     try {
       console.log('Component mounting...');
-      await this.fetchUserDept();
       await this.fetchSystemRecords();
     } catch (error) {
       console.error("Error in mounted:", error);

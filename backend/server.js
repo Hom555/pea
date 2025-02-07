@@ -155,37 +155,140 @@ const withConnection = async (req, res, next) => {
   }
 };
 
-app.post('/api/system-record', async (req, res) => {
+// เพิ่ม middleware สำหรับดึงข้อมูล user
+const getUserData = async (req, res, next) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const emp_id = 498146444; // ค่าชั่วคราว
+
+    const [users] = await conn.query(`
+      SELECT 
+        emp_id,
+        first_name,
+        last_name,
+        dept_change_code,
+        dept_full,
+        role_id
+      FROM users 
+      WHERE emp_id = ?
+    `, [emp_id]);
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลผู้ใช้'
+      });
+    }
+
+    // ตรวจสอบว่ามีข้อมูลแผนกครบถ้วน
+    if (!users[0].dept_change_code || !users[0].dept_full) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'ข้อมูลแผนกไม่ครบถ้วน'
+      });
+    }
+
+    req.user = users[0];
+    next();
+  } catch (error) {
+    console.error('Error getting user data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+// ใช้ middleware กับ routes ที่ต้องการข้อมูล user
+app.get('/api/system-records', getUserData, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    
+    // ใช้ข้อมูลแผนกจาก middleware
+    const userDept = req.user.dept_change_code;
+
+    const [systems] = await conn.query(`
+      SELECT 
+        id,
+        name_th,
+        name_en,
+        dept_change_code,
+        dept_full,
+        created_at,
+        updated_at,
+        is_active
+      FROM system_master
+      WHERE dept_change_code = ?
+        AND is_active = 1
+      ORDER BY created_at DESC
+    `, [userDept]);
+
+    console.log('Fetched systems for dept:', userDept, 'count:', systems.length);
+    res.json(systems);
+
+  } catch (error) {
+    console.error('Error fetching systems:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// ใช้ middleware กับ route เพิ่มระบบด้วย
+app.post('/api/system-record', getUserData, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
     const { nameTH, nameEN, dept_change_code, dept_full } = req.body;
 
-    if (!nameTH || !nameEN) {
+    // Validate input
+    if (!nameTH || !nameEN || !dept_change_code || !dept_full) {
       return res.status(400).json({
         status: 'error',
-        message: 'กรุณากรอกชื่อภาษาไทยและภาษาอังกฤษ'
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
+    // Insert new record
     const [result] = await conn.query(`
       INSERT INTO system_master 
-      (name_th, name_en, is_active, dept_change_code, dept_full) 
-      VALUES (?, ?, 1, ?, ?)
-    `, [nameTH, nameEN, dept_change_code, dept_full]);
+      (name_th, name_en, dept_change_code, dept_full, is_active) 
+      VALUES (?, ?, ?, ?, 1)
+    `, [
+      nameTH.trim(),
+      nameEN.trim(),
+      dept_change_code,
+      dept_full
+    ]);
 
+    // Return success response
     res.json({
       status: 'success',
       message: 'บันทึกข้อมูลสำเร็จ',
-      id: result.insertId
+      id: result.insertId,
+      data: {
+        id: result.insertId,
+        name_th: nameTH.trim(),
+        name_en: nameEN.trim(),
+        dept_change_code,
+        dept_full,
+        created_at: new Date().toISOString(),
+        is_active: 1
+      }
     });
 
   } catch (error) {
-    console.error('Error saving system:', error);
+    console.error('Error saving system record:', error);
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถบันทึกข้อมูลได้',
-      error: error.message
+      message: 'ไม่สามารถบันทึกข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();
@@ -215,43 +318,6 @@ app.put('/api/system-record/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating record:', error);
     res.status(500).send({ message: 'ไม่สามารถอัปเดตข้อมูลได้' });
-  }
-});
-
-// API endpoint สำหรับดึงข้อมูลระบบทั้งหมด
-app.get('/api/system-records', async (req, res) => {
-  let conn;
-  try {
-    conn = await pool.getConnection();
-    console.log('Connected to database');
-
-    const [systems] = await conn.query(`
-      SELECT 
-        id,
-        name_th,
-        name_en,
-        dept_change_code,
-        dept_full,
-        created_at,
-        updated_at,
-        is_active
-      FROM system_master
-      WHERE is_active = 1
-      ORDER BY created_at DESC
-    `);
-
-    console.log('Fetched systems:', systems.length);
-    res.json(systems);
-
-  } catch (error) {
-    console.error('Error fetching systems:', error);
-    res.status(500).json({ 
-      status: 'error',
-      message: 'ไม่สามารถดึงข้อมูลได้',
-      error: error.message 
-    });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
@@ -1036,14 +1102,13 @@ app.get('/api/data', async (req, res) => {
       });
     }
 
+    // ส่งข้อมูลจริงจาก database โดยไม่ใช้ค่า default
     res.json({
       status: 'success',
       data: {
         dataDetail: users.map(user => ({
           ...user,
-          role_id: Number(user.role_id),
-          dept_change_code: user.dept_change_code || '530105002000301',
-          dept_full: user.dept_full || 'แผนกพัฒนาระบบงานด้านการเงิน'
+          role_id: Number(user.role_id)
         }))
       }
     });
