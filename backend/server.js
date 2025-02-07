@@ -34,10 +34,10 @@ app.use(bodyParser.json());
 app.use(fileUpload({
   createParentPath: true,
   limits: { 
-    fileSize: 50 * 1024 * 1024 // 50MB max-file-size
+    fileSize: 10 * 1024 * 1024 // 10MB max-file-size
   },
-  useTempFiles: false,
-  parseNested: true, // เพิ่มตัวเลือกนี้
+  useTempFiles: true,
+  tempFileDir: '/tmp/',
   debug: true
 }));
 
@@ -318,180 +318,287 @@ app.put('/api/system-record/:id', async (req, res) => {
   }
 });
 
-app.post('/api/system-details', upload.array('files', 10), async (req, res) => {
+app.post('/api/system-details', getUserData, async (req, res) => {
+  let conn;
   try {
     console.log('Received data:', req.body);
+    console.log('Received files:', req.files);
     
     const { systemId, importantInfo, referenceNo, additionalInfo } = req.body;
+    const userDept = req.user.dept_change_code;
+    const userDeptFull = req.user.dept_full;
 
     // ตรวจสอบข้อมูลที่จำเป็น
-    if (!systemId) {
+    if (!systemId || !importantInfo?.trim() || !referenceNo?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'กรุณาเลือกระบบงาน'
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
-    if (!importantInfo?.trim()) {
-      return res.status(400).json({
+    conn = await pool.getConnection();
+
+    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [system] = await conn.query(`
+      SELECT dept_change_code 
+      FROM system_master 
+      WHERE id = ?
+    `, [systemId]);
+
+    if (system.length === 0) {
+      return res.status(404).json({
         success: false,
-        message: 'กรุณากรอกข้อมูลสำคัญ'
+        message: 'ไม่พบข้อมูลระบบ'
       });
     }
 
-    if (!referenceNo?.trim()) {
-      return res.status(400).json({
+    if (system[0].dept_change_code !== userDept) {
+      return res.status(403).json({
         success: false,
-        message: 'กรุณากรอกเลขที่หนังสืออ้างอิง'
+        message: 'ไม่มีสิทธิ์เพิ่มข้อมูลให้ระบบของแผนกอื่น'
       });
     }
 
-    // สร้าง file path string จากไฟล์ที่อัพโหลด
-    const filePath = req.files && req.files.length > 0 
-      ? req.files.map(file => `/uploads/${file.filename}`).join(',')
-      : null;
+    // จัดการไฟล์
+    let filePath = null;
+    if (req.files && req.files.files) {
+      const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+      
+      const uploadedFiles = await Promise.all(files.map(async (file) => {
+        const filename = `${Date.now()}-${file.name}`;
+        const uploadPath = path.join(__dirname, 'uploads', filename);
+        
+        await file.mv(uploadPath);
+        return '/uploads/' + filename;
+      }));
+      
+      filePath = uploadedFiles.join(',');
+    }
 
     // บันทึกข้อมูล
-    const connection = await pool.getConnection();
-    const [result] = await connection.execute(
-      `INSERT INTO system_details 
-       (system_id, important_info, reference_no, additional_info, file_path, created_at) 
-       VALUES (?, ?, ?, ?, ?, NOW())`,
-      [
-        parseInt(systemId), // แปลงเป็น int
-        importantInfo.trim(),
-        referenceNo.trim(),
-        additionalInfo?.trim() || null,
-        filePath
-      ]
-    );
+    const insertQuery = `
+      INSERT INTO system_details 
+      (system_id, important_info, reference_no, additional_info, file_path, dept_change_code, dept_full) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const [result] = await conn.query(insertQuery, [
+      parseInt(systemId),
+      importantInfo.trim(),
+      referenceNo.trim(),
+      additionalInfo?.trim() || null,
+      filePath,
+      userDept,
+      userDeptFull
+    ]);
+
+    // ดึงข้อมูลที่เพิ่งบันทึกเพื่อส่งกลับ
+    const [newRecord] = await conn.query(`
+      SELECT * FROM system_details WHERE id = ?
+    `, [result.insertId]);
 
     res.json({
       success: true,
       message: 'บันทึกข้อมูลสำเร็จ',
-      data: {
-        id: result.insertId,
-        systemId: parseInt(systemId),
-        importantInfo: importantInfo.trim(),
-        referenceNo: referenceNo.trim(),
-        additionalInfo: additionalInfo?.trim() || null,
-        filePath
-      }
+      data: newRecord[0]
     });
 
   } catch (error) {
     console.error('Error saving system details:', error);
-    
-    // ลบไฟล์ที่อัพโหลดถ้าเกิด error
-    if (req.files) {
-      req.files.forEach(file => {
-        fs.unlink(file.path, err => {
-          if (err) console.error('Error deleting file:', err);
-        });
-      });
-    }
-
     res.status(500).json({
       success: false,
       message: 'ไม่สามารถบันทึกข้อมูลได้',
-      error: error.message
+      error: error.message,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
-app.get('/api/system-details/:systemId', async (req, res) => {
-  const { systemId } = req.params;
-
-  const query = `
-    SELECT * FROM system_details 
-    WHERE system_id = ?
-    ORDER BY created_at DESC
-  `;
-
+app.get('/api/system-details/:systemId', getUserData, async (req, res) => {
+  let conn;
   try {
-    const connection = await pool.getConnection();
-    const [rows] = await connection.query(query, [systemId]);
-    console.log('Fetched system details:', rows);
-    res.status(200).json(rows);
-  } catch (error) {
-    console.error('Error fetching system details:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    conn = await pool.getConnection();
+    const systemId = req.params.systemId;
+    const userDept = req.user.dept_change_code;
 
-app.put('/api/system-details/:id', upload.array('files', 10), async (req, res) => {
-  const { id } = req.params;
-  const { importantInfo, referenceNo, additionalInfo } = req.body;
-  const files = req.files || [];
-
-  if (!importantInfo || !referenceNo) {
-    return res.status(400).json({ message: 'กรุณากรอกข้อมูลที่จำเป็น' });
-  }
-
-  try {
-    // อัปเดตข้อมูลในฐานข้อมูล
-    const connection = await pool.getConnection();
-    const updateQuery = `
-      UPDATE system_details
-      SET important_info = ?, reference_no = ?, additional_info = ?
+    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [system] = await conn.query(`
+      SELECT dept_change_code 
+      FROM system_master 
       WHERE id = ?
-    `;
-    await connection.execute(updateQuery, [importantInfo, referenceNo, additionalInfo, id]);
+    `, [systemId]);
 
-    // หากมีไฟล์ใหม่ให้เพิ่มในฐานข้อมูล
-    if (files.length > 0) {
-      const filePaths = files.map((file) => `/uploads/${file.filename}`).join(',');
-      const updateFileQuery = `
-        UPDATE system_details
-        SET file_path = ?
-        WHERE id = ?
-      `;
-      await connection.execute(updateFileQuery, [filePaths, id]);
-    }
-
-    res.status(200).json({ 
-      message: 'อัปเดตข้อมูลสำเร็จ', 
-      data: {
-        id,
-        importantInfo,
-        referenceNo,
-        additionalInfo,
-        file_path: files.length > 0 ? files.map((file) => `/uploads/${file.filename}`).join(',') : ''
-      }
-    });
-  } catch (error) {
-    console.error('Error updating details:', error);
-    if (files.length > 0) {
-      files.forEach(file => {
-        fs.unlink(file.path, (err) => {
-          if (err) console.error('Error deleting file:', err);
-        });
+    if (system.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลระบบ'
       });
     }
-    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูล' });
+
+    if (system[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์ดูข้อมูลของระบบแผนกอื่น'
+      });
+    }
+
+    // ดึงข้อมูลรายละเอียดระบบ
+    const [details] = await conn.query(`
+      SELECT * 
+      FROM system_details 
+      WHERE system_id = ?
+      ORDER BY created_at DESC
+    `, [systemId]);
+
+    res.json(details);
+
+  } catch (error) {
+    console.error('Error fetching system details:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
-app.delete('/api/system-details/:id', async (req, res) => {
-  const detailId = req.params.id;
-  
+app.put('/api/system-details/:id', getUserData, async (req, res) => {
+  let conn;
   try {
-    const connection = await pool.getConnection();
-    const [result] = await connection.execute(
-      'DELETE FROM system_details WHERE id = ?',
-      [detailId]
-    );
+    const { id } = req.params;
+    const { importantInfo, referenceNo, additionalInfo } = req.body;
+    const userDept = req.user.dept_change_code;
 
-    if (result.affectedRows > 0) {
-      console.log('Deleted successfully:', detailId);
-      res.status(200).json({ message: 'ลบข้อมูลสำเร็จ' });
-    } else {
-      console.log('Record not found:', detailId);
-      res.status(404).json({ error: 'ไม่พบข้อมูลที่ต้องการลบ' });
+    if (!importantInfo || !referenceNo) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'กรุณากรอกข้อมูลที่จำเป็น' 
+      });
     }
+
+    conn = await pool.getConnection();
+
+    // ตรวจสอบว่าข้อมูลนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [detail] = await conn.query(`
+      SELECT dept_change_code 
+      FROM system_details 
+      WHERE id = ?
+    `, [id]);
+
+    if (detail.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบข้อมูลที่ต้องการแก้ไข'
+      });
+    }
+
+    if (detail[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        success: false,
+        message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
+      });
+    }
+
+    // อัปเดตข้อมูล
+    const updateData = {
+      important_info: importantInfo.trim(),
+      reference_no: referenceNo.trim(),
+      additional_info: additionalInfo?.trim() || null
+    };
+
+    const updateFields = Object.keys(updateData)
+      .map(key => `${key} = ?`)
+      .join(', ');
+
+    const updateValues = Object.values(updateData);
+    updateValues.push(id);
+
+    await conn.query(`
+      UPDATE system_details 
+      SET ${updateFields}
+      WHERE id = ?
+    `, updateValues);
+
+    res.json({
+      success: true,
+      message: 'อัปเดตข้อมูลสำเร็จ',
+      data: {
+        id,
+        ...updateData
+      }
+    });
+
   } catch (error) {
-    console.error('Error deleting:', error);
-    res.status(500).json({ error: 'ไม่สามารถลบข้อมูลได้' });
+    console.error('Error updating system details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถอัปเดตข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+app.delete('/api/system-details/:id', getUserData, async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    const userDept = req.user.dept_change_code;
+
+    conn = await pool.getConnection();
+
+    // ตรวจสอบว่าข้อมูลนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [detail] = await conn.query(`
+      SELECT dept_change_code, file_path 
+      FROM system_details 
+      WHERE id = ?
+    `, [id]);
+
+    if (detail.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบข้อมูลที่ต้องการลบ'
+      });
+    }
+
+    if (detail[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        success: false,
+        message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+      });
+    }
+
+    // ลบไฟล์เก่า (ถ้ามี)
+    if (detail[0].file_path) {
+      const filePaths = detail[0].file_path.split(',');
+      filePaths.forEach(filePath => {
+        const fullPath = path.join(__dirname, filePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบข้อมูล
+    await conn.query('DELETE FROM system_details WHERE id = ?', [id]);
+
+    res.json({
+      success: true,
+      message: 'ลบข้อมูลสำเร็จ'
+    });
+
+  } catch (error) {
+    console.error('Error deleting system details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถลบข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

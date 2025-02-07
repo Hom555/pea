@@ -185,7 +185,7 @@ export default {
         }
 
         const response = await axios.post(
-          'http://localhost:8881/api/system-details',
+          'http://localhost:8088/api/system-details',
           formData,
           {
             headers: {
