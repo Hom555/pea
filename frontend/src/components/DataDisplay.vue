@@ -206,7 +206,7 @@ export default {
         }
 
         const response = await axios.get(
-          `http://localhost:8881/api/system-details/${this.selectedSystemId}`
+          `http://localhost:8088/api/system-details/${this.selectedSystemId}`
         );
         console.log('Response:', response.data);
         
@@ -243,7 +243,7 @@ export default {
         }
 
         await axios.put(
-          `http://localhost:8881/api/system-details/${detail.id}`,
+          `http://localhost:8088/api/system-details/${detail.id}`,
           formData,
           {
             headers: { "Content-Type": "multipart/form-data" },
@@ -294,7 +294,7 @@ export default {
     async deleteDetail(detail) {
       try {
         const response = await axios.delete(
-          `http://localhost:8881/api/system-details/${detail.id}`
+          `http://localhost:8088/api/system-details/${detail.id}`
         );
 
         if (response.status === 200) {
