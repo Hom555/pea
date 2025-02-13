@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
@@ -202,6 +203,7 @@ app.get('/api/system-records', getUserData, async (req, res) => {
     
     // ใช้ข้อมูลแผนกจาก middleware
     const userDept = req.user.dept_change_code;
+    console.log('Fetching systems for dept:', userDept);
 
     // เพิ่ม WHERE clause เพื่อกรองตามแผนก
     const [systems] = await conn.query(`
@@ -220,7 +222,7 @@ app.get('/api/system-records', getUserData, async (req, res) => {
       ORDER BY created_at DESC
     `, [userDept]);
 
-    console.log('Fetched systems for dept:', userDept, 'count:', systems.length);
+    console.log('Found systems:', systems.length);
     res.json(systems);
 
   } catch (error) {
@@ -603,69 +605,124 @@ app.delete('/api/system-details/:id', getUserData, async (req, res) => {
 });
 
 //กิจกรรม
-app.post("/api/activities", upload.fields([{ name: "files" }, { name: "images" }]), async (req, res) => {
-  const { systemId, importantInfo, details } = req.body;
-
+app.post('/api/activities', getUserData, async (req, res) => {
+  let conn;
   try {
-    // Add validation
-    if (!systemId || !importantInfo || !details) {
-      return res.status(400).json({ 
-        success: false,
-        message: "กรุณากรอกข้อมูลให้ครบถ้วน" 
+    console.log('Received activity data:', req.body);
+    console.log('Received files:', req.files);
+    console.log('User data:', req.user);
+
+    const { systemId, importantInfo, details } = req.body;
+    const userDept = req.user.dept_change_code;
+    const userDeptFull = req.user.dept_full;
+
+    // Validate required fields
+    if (!systemId || !details) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
-    // Get department info from system_master
-    const [system] = await pool.query(
-      'SELECT dept_change_code, dept_full FROM system_master WHERE id = ?',
-      [systemId]
-    );
+    conn = await pool.getConnection();
+
+    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [system] = await conn.query(`
+      SELECT dept_change_code 
+      FROM system_master 
+      WHERE id = ?
+    `, [systemId]);
 
     if (system.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "ไม่พบข้อมูลระบบ"
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลระบบ'
       });
     }
 
-    // Process files
-    const filePaths = req.files?.["files"]
-      ? req.files["files"].map((file) => `/uploads/${file.filename}`)
-      : [];
-    const imagePaths = req.files?.["images"]
-      ? req.files["images"].map((file) => `/uploads/${file.filename}`)
-      : [];
+    if (system[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์เพิ่มข้อมูลให้ระบบของแผนกอื่น'
+      });
+    }
 
-    // Insert with department info
-    const query = `
-      INSERT INTO activities 
-      (system_id, important_info, details, file_paths, image_paths, dept_change_code, dept_full) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
+    // Process uploaded files
+    let filePaths = [];
+    let imagePaths = [];
 
-    const [result] = await pool.execute(query, [
-      systemId,
-      importantInfo,
-      details,
-      filePaths.join(","),
-      imagePaths.join(","),
-      system[0].dept_change_code,
-      system[0].dept_full
-    ]);
+    if (req.files) {
+      // สร้างโฟลเดอร์ถ้ายังไม่มี
+      const uploadDir = path.join(__dirname, 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
 
-    res.status(200).json({ 
-      success: true,
-      message: "บันทึกกิจกรรมสำเร็จ",
-      activityId: result.insertId
+      if (req.files.files) {
+        const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+        for (const file of files) {
+          const filename = `${Date.now()}-${file.name}`;
+          const uploadPath = path.join(uploadDir, filename);
+          await file.mv(uploadPath);
+          filePaths.push('/uploads/' + filename);
+        }
+      }
+
+      if (req.files.images) {
+        const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+        for (const file of images) {
+          const filename = `${Date.now()}-${file.name}`;
+          const uploadPath = path.join(uploadDir, filename);
+          await file.mv(uploadPath);
+          imagePaths.push('/uploads/' + filename);
+        }
+      }
+    }
+
+    // Insert activity with department info and get the inserted ID
+    const [result] = await conn.execute(
+      `INSERT INTO activities 
+       (system_id, important_info, details, file_paths, image_paths, dept_change_code, dept_full, created_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        systemId,
+        importantInfo || null,
+        details,
+        filePaths.join(',') || null,
+        imagePaths.join(',') || null,
+        userDept,
+        userDeptFull,
+        req.user.emp_id || null
+      ]
+    );
+
+    // ดึงข้อมูลที่เพิ่งบันทึก
+    const [newActivity] = await conn.query(
+      `SELECT * FROM activities WHERE id = LAST_INSERT_ID()`,
+      []
+    );
+
+    console.log('Inserted activity ID:', result.insertId);
+    console.log('New activity data:', newActivity[0]);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'บันทึกกิจกรรมสำเร็จ',
+      activity: {
+        ...newActivity[0],
+        id: result.insertId
+      }
     });
 
   } catch (error) {
-    console.error("Error saving activity:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "ไม่สามารถบันทึกกิจกรรมได้",
-      error: error.message 
+    console.error('Error saving activity:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกกิจกรรมได้',
+      error: error.message
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -879,7 +936,6 @@ app.put('/api/activities/:id', upload.fields([{ name: 'files' }, { name: 'images
     res.status(500).json({ error: 'Failed to update activity' });
   }
 });
-
 
 app.delete('/api/activities/:id', async (req, res) => {
   const { id } = req.params;
@@ -1184,18 +1240,57 @@ process.on('SIGINT', async () => {
 // เพิ่ม endpoint สำหรับดึงข้อมูล user และ role
 app.get('/api/data', async (req, res) => {
   try {
+    // ตรวจสอบ Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'ไม่พบ Authorization token'
+      });
+    }
+
+    console.log('Calling external API with token:', authHeader);
+
     const response = await axios.get('http://localhost:3007/api/data', {
       headers: {
-        Authorization: req.headers.authorization
-      }
+        Authorization: authHeader
+      },
+      timeout: 5000 // เพิ่ม timeout 5 วินาที
     });
+
+    console.log('External API response:', response.data);
 
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching user data:', error);
+    
+    if (error.code === 'ECONNREFUSED') {
+      return res.status(503).json({
+        status: 'error',
+        message: 'ไม่สามารถเชื่อมต่อกับ Authentication Server (port 3007) กรุณาตรวจสอบการทำงานของ server'
+      });
+    }
+
+    if (error.response) {
+      // กรณีได้รับ response แต่เป็น error
+      return res.status(error.response.status).json({
+        status: 'error',
+        message: error.response.data?.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้',
+        details: error.response.data
+      });
+    }
+
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      return res.status(504).json({
+        status: 'error',
+        message: 'การเชื่อมต่อกับ server หมดเวลา กรุณาลองใหม่อีกครั้ง'
+      });
+    }
+
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้'
+      message: 'ไม่สามารถดึงข้อมูลผู้ใช้ได้',
+      error: error.message
     });
   }
 });
@@ -1320,4 +1415,234 @@ app.delete('/api/system-record/:id', getUserData, async (req, res) => {
   } finally {
     if (conn) conn.release();
   }
+});
+
+// Get activities by system ID and important info ID
+app.get('/api/activities/:systemId/:importantInfoId', getUserData, async (req, res) => {
+  const { systemId, importantInfoId } = req.params;
+  let conn;
+
+  try {
+    conn = await pool.getConnection();
+    const userDept = req.user.dept_change_code;
+
+    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
+    const [system] = await conn.query(
+      'SELECT dept_change_code FROM system_master WHERE id = ?',
+      [systemId]
+    );
+
+    if (system.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลระบบ'
+      });
+    }
+
+    if (system[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์ดูข้อมูลของระบบแผนกอื่น'
+      });
+    }
+    
+    const [activities] = await conn.query(
+      `SELECT a.*, u.first_name, u.last_name, u.title_s_desc
+       FROM activities a
+       LEFT JOIN users u ON a.created_by = u.emp_id
+       WHERE a.system_id = ? AND a.important_info = ?
+       ORDER BY a.created_at DESC`,
+      [systemId, importantInfoId]
+    );
+
+    res.json(activities);
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลกิจกรรมได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Create new activity
+app.post('/api/activities', getUserData, upload.fields([
+  { name: 'files', maxCount: 10 },
+  { name: 'images', maxCount: 10 }
+]), async (req, res) => {
+  const { systemId, importantInfoId, details } = req.body;
+  let conn;
+
+  try {
+    if (!systemId || !importantInfoId || !details) {
+      return res.status(400).json({
+        success: false,
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
+      });
+    }
+
+    conn = await pool.getConnection();
+
+    // Get department info from system_master
+    const [system] = await conn.query(
+      'SELECT dept_change_code, dept_full FROM system_master WHERE id = ?',
+      [systemId]
+    );
+
+    if (system.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบข้อมูลระบบ'
+      });
+    }
+
+    // Process files
+    const filePaths = req.files?.['files']
+      ? req.files['files'].map(file => `/uploads/${file.filename}`)
+      : [];
+    const imagePaths = req.files?.['images']
+      ? req.files['images'].map(file => `/uploads/${file.filename}`)
+      : [];
+
+    // Insert with department info
+    const [result] = await conn.execute(
+      `INSERT INTO activities 
+       (system_id, important_info, details, file_paths, image_paths, dept_change_code, dept_full) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        systemId,
+        importantInfoId,
+        details,
+        filePaths.join(','),
+        imagePaths.join(','),
+        system[0].dept_change_code,
+        system[0].dept_full
+      ]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'บันทึกกิจกรรมสำเร็จ',
+      activityId: result.insertId
+    });
+
+  } catch (error) {
+    console.error('Error saving activity:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถบันทึกข้อมูลได้',
+      error: error.message
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Update activity
+app.put('/api/activities/:id', upload.fields([
+  { name: 'files', maxCount: 10 },
+  { name: 'images', maxCount: 10 }
+]), async (req, res) => {
+  const { id } = req.params;
+  const { details } = req.body;
+  let conn;
+
+  try {
+    conn = await pool.getConnection();
+
+    // Process new files if any
+    const filePaths = req.files?.['files']
+      ? req.files['files'].map(file => `/uploads/${file.filename}`)
+      : [];
+    const imagePaths = req.files?.['images']
+      ? req.files['images'].map(file => `/uploads/${file.filename}`)
+      : [];
+
+    // Get existing activity
+    const [existingActivity] = await conn.query(
+      'SELECT file_paths, image_paths FROM activities WHERE id = ?',
+      [id]
+    );
+
+    if (existingActivity.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบข้อมูลกิจกรรม'
+      });
+    }
+
+    // Combine existing and new file paths
+    const updatedFilePaths = [
+      ...(existingActivity[0].file_paths ? existingActivity[0].file_paths.split(',') : []),
+      ...filePaths
+    ].filter(Boolean).join(',');
+
+    const updatedImagePaths = [
+      ...(existingActivity[0].image_paths ? existingActivity[0].image_paths.split(',') : []),
+      ...imagePaths
+    ].filter(Boolean).join(',');
+
+    // Update activity
+    await conn.execute(
+      `UPDATE activities 
+       SET details = ?, 
+           file_paths = ?, 
+           image_paths = ?
+       WHERE id = ?`,
+      [details, updatedFilePaths, updatedImagePaths, id]
+    );
+
+    res.json({
+      success: true,
+      message: 'อัปเดตข้อมูลสำเร็จ'
+    });
+
+  } catch (error) {
+    console.error('Error updating activity:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถอัปเดตข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// Delete activity
+app.delete('/api/activities/:id', async (req, res) => {
+  const { id } = req.params;
+  let conn;
+
+  try {
+    conn = await pool.getConnection();
+    
+    await conn.execute('DELETE FROM activities WHERE id = ?', [id]);
+    
+    res.json({
+      success: true,
+      message: 'ลบข้อมูลสำเร็จ'
+    });
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถลบข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// เพิ่ม endpoint สำหรับตรวจสอบการเชื่อมต่อ
+app.get('/api/check-connection', getUserData, (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'เชื่อมต่อสำเร็จ',
+    user: {
+      dept_change_code: req.user.dept_change_code,
+      dept_full: req.user.dept_full
+    }
+  });
 });

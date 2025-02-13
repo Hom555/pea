@@ -55,7 +55,7 @@
                   :key="info.id"
                   :value="info.id"
                 >
-                  {{ info.name }}
+                  {{ info.important_info }}
                 </option>
               </select>
             </div>
@@ -94,25 +94,20 @@
                   type="file"
                   multiple
                   @change="handleFileUpload"
-                  accept=".pdf,.doc,.docx"
                   class="hidden"
                 />
                 <div class="upload-placeholder">
-                  <i class="fas fa-cloud-upload-alt"></i>
+                  <i class="fas fa-file"></i>
                   <span>คลิกหรือลากไฟล์มาวางที่นี่</span>
                   <small>รองรับไฟล์ PDF, DOC, DOCX</small>
                 </div>
               </div>
-              <!-- File List -->
-              <div class="file-list" v-if="files.length > 0">
-                <div
-                  v-for="(file, index) in files"
-                  :key="index"
-                  class="file-item"
-                >
-                  <i class="fas fa-file-alt"></i>
-                  <span class="file-name">{{ file.name }}</span>
-                  <button @click="removeFile(index)" class="remove-btn">
+              <!-- File Preview -->
+              <div class="file-preview" v-if="files.length > 0">
+                <div v-for="(file, index) in files" :key="index" class="preview-item">
+                  <i class="fas fa-file"></i>
+                  <span>{{ file.name }}</span>
+                  <button @click.prevent="removeFile(index)" class="remove-btn">
                     <i class="fas fa-times"></i>
                   </button>
                 </div>
@@ -147,20 +142,9 @@
               </div>
               <!-- Image Preview -->
               <div class="image-preview" v-if="images.length > 0">
-                <div
-                  v-for="(image, index) in images"
-                  :key="index"
-                  class="preview-item"
-                >
-                  <img
-                    v-if="image"
-                    :src="getImagePreviewUrl(image)"
-                    alt="Preview"
-                  />
-                  <button
-                    @click.prevent="removeImage(index)"
-                    class="remove-btn"
-                  >
+                <div v-for="(image, index) in images" :key="index" class="preview-item">
+                  <img v-if="image" :src="getImagePreviewUrl(image)" alt="Preview" />
+                  <button @click.prevent="removeImage(index)" class="remove-btn">
                     <i class="fas fa-times"></i>
                   </button>
                 </div>
@@ -180,76 +164,6 @@
             </button>
           </div>
         </form>
-      </div>
-
-      <!-- Activities List Section -->
-      <div v-if="hasActivities" class="activities-section">
-        <div class="section-header">
-          <i class="fas fa-list-alt"></i>
-          <span>รายการกิจกรรม</span>
-        </div>
-
-        <div class="activity-list">
-          <div
-            v-for="activity in activities"
-            :key="activity.id"
-            class="activity-card"
-          >
-            <div class="activity-header">
-              <div class="activity-date">
-                <i class="fas fa-calendar-alt"></i>
-                {{ formatDate(activity.created_at) }}
-              </div>
-            </div>
-
-            <div class="activity-body">
-              <p class="activity-details">{{ activity.details }}</p>
-
-              <!-- Attached Files -->
-              <div v-if="activity.file_paths" class="attachments">
-                <h4>
-                  <i class="fas fa-paperclip"></i>
-                  เอกสารแนบ
-                </h4>
-                <div class="attachment-list">
-                  <a
-                    v-for="(filePath, index) in activity.file_paths.split(',')"
-                    :key="index"
-                    :href="`http://localhost:8881${filePath}`"
-                    target="_blank"
-                    class="attachment-link"
-                  >
-                    <i class="fas fa-file"></i>
-                    <span>{{ getFileName(filePath) }}</span>
-                  </a>
-                </div>
-              </div>
-
-              <!-- Attached Images -->
-              <div v-if="activity.image_paths" class="activity-images">
-                <h4>
-                  <i class="fas fa-images"></i>
-                  รูปภาพ
-                </h4>
-                <div class="image-grid">
-                  <div
-                    v-for="(imagePath, index) in activity.image_paths.split(
-                      ','
-                    )"
-                    :key="index"
-                    class="image-item"
-                    @click="openImageViewer(imagePath)"
-                  >
-                    <img
-                      :src="`http://localhost:8881${imagePath}`"
-                      alt="Activity image"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -276,25 +190,57 @@ export default {
       images: [],
       isSubmitted: false,
       activities: [],
+      deptInfo: null
     };
   },
   computed: {
-    ...mapGetters(['getUserDepartment'])
+    ...mapGetters(['getUserDepartment']),
   },
   methods: {
+    async fetchDeptInfo() {
+      try {
+        // เรียก API เพื่อดึงข้อมูลแผนก
+        const response = await axios.get("http://localhost:8088/api/check-connection");
+
+        if (response.data.success) {
+          this.deptInfo = {
+            dept_change_code: response.data.user.dept_change_code,
+            dept_full: response.data.user.dept_full
+          };
+          await this.fetchSystems();
+        } else {
+          this.toast.error("ไม่สามารถดึงข้อมูลแผนกได้");
+        }
+      } catch (error) {
+        console.error("Error in fetchDeptInfo:", error);
+        this.toast.error("ไม่สามารถดึงข้อมูลแผนกได้ กรุณาลองใหม่อีกครั้ง");
+      }
+    },
+
     async fetchSystems() {
       try {
         const response = await axios.get("http://localhost:8088/api/system-records");
-        // กรองเฉพาะระบบของแผนกตัวเอง
-        this.systemList = response.data.filter(system => 
-          system.is_active === 1 && 
-          system.dept_change_code === this.getUserDepartment?.dept_change_code
-        );
+        console.log('Systems API Response:', response.data);
+        
+        // กรองระบบตามแผนก
+        if (this.deptInfo) {
+          this.systemList = response.data.filter(
+            system => system.is_active === 1 && 
+            system.dept_change_code === this.deptInfo.dept_change_code
+          );
+          
+          if (this.systemList.length === 0) {
+            this.toast.info("ไม่พบระบบที่เกี่ยวข้องกับแผนกของคุณ");
+          }
+        } else {
+          this.toast.error("ไม่พบข้อมูลแผนก");
+        }
       } catch (error) {
         console.error("Error fetching systems:", error);
         this.toast.error("ไม่สามารถดึงข้อมูลระบบได้");
       }
     },
+
     async fetchImportantInfo() {
       if (!this.selectedSystemId) {
         this.importantInfoList = [];
@@ -302,137 +248,116 @@ export default {
       }
 
       try {
+        console.log('Fetching important info for system:', this.selectedSystemId);
+        
         const response = await axios.get(
-          `http://localhost:8881/api/system-details/${this.selectedSystemId}`
+          `http://localhost:8088/api/system-details/${this.selectedSystemId}`
         );
 
+        console.log('Important Info API Response:', response.data);
+
         const system = this.systemList.find(s => s.id === parseInt(this.selectedSystemId));
-        if (!system) {
+        if (!system?.is_active) {
           this.toast.error('ระบบนี้ถูกปิดการใช้งาน');
           this.selectedSystemId = '';
           this.importantInfoList = [];
           return;
         }
 
-        this.importantInfoList = response.data.map((item) => ({
-          id: item.id,
-          name: item.important_info,
-        }));
+        if (response.data && response.data.length > 0) {
+          this.importantInfoList = response.data;
+        } else {
+          this.importantInfoList = [];
+          this.toast.info('ไม่พบข้อมูลสำคัญสำหรับระบบนี้');
+        }
       } catch (error) {
         console.error('Error fetching important info:', error);
         this.toast.error('ไม่สามารถดึงข้อมูลสำคัญได้');
+        this.importantInfoList = [];
       }
     },
     handleFileUpload(event) {
-      const files = event.target.files;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (this.isValidFileType(file)) {
-          this.files.push(file);
-        } else {
-          this.toast.error('กรุณาเลือกไฟล์ PDF, DOC หรือ DOCX เท่านั้น');
-        }
-      }
+      this.files = Array.from(event.target.files);
     },
     handleImageUpload(event) {
-      const files = event.target.files;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (this.isValidImageType(file)) {
-          file.preview = URL.createObjectURL(file);
-          this.images.push(file);
-        } else {
-          this.toast.error('กรุณาเลือกไฟล์รูปภาพ JPG หรือ PNG เท่านั้น');
-        }
+      const files = Array.from(event.target.files);
+      const validImages = files.filter(
+        (file) => file && file.type.startsWith("image/")
+      );
+      if (validImages.length !== files.length) {
+        alert("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
+        return;
       }
-    },
-    isValidImageType(file) {
-      const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-      return validTypes.includes(file.type);
-    },
-    getImagePreviewUrl(image) {
-      return image.preview || '';
-    },
-    removeImage(index) {
-      const image = this.images[index];
-      if (image.preview) {
-        URL.revokeObjectURL(image.preview);
-      }
-      this.images.splice(index, 1);
-    },
-    handleImageDrop(event) {
-      event.preventDefault();
-      const files = event.dataTransfer.files;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (this.isValidImageType(file)) {
-          file.preview = URL.createObjectURL(file);
-          this.images.push(file);
-        } else {
-          this.toast.error('กรุณาลากไฟล์รูปภาพ JPG หรือ PNG เท่านั้น');
-        }
-      }
+      this.images = validImages;
     },
     async submitForm() {
       try {
-        this.isSubmitted = true;
-        if (!this.selectedSystemId || !this.importantInfo || !this.details) {
-          this.toast.error('กรุณากรอกข้อมูลให้ครบถ้วน');
+        if (!this.selectedSystemId) {
+          this.toast.error("กรุณาเลือกระบบงาน");
+          return;
+        }
+        if (!this.details?.trim()) {
+          this.toast.error("กรุณากรอกรายละเอียดกิจกรรม");
           return;
         }
 
         const formData = new FormData();
-        
-        formData.append('system_id', String(this.selectedSystemId));
-        formData.append('important_info_id', String(this.importantInfo));
-        formData.append('details', this.details);
+        formData.append('systemId', this.selectedSystemId);
+        formData.append('details', this.details.trim());
+        formData.append('importantInfo', this.importantInfo || '');
 
+        // เพิ่มไฟล์
         if (this.files && this.files.length > 0) {
-          for (const file of this.files) {
-            formData.append('files[]', file);
+          for (let i = 0; i < this.files.length; i++) {
+            formData.append('files', this.files[i]);
           }
         }
 
+        // เพิ่มรูปภาพ
         if (this.images && this.images.length > 0) {
-          for (const image of this.images) {
-            formData.append('images[]', image);
+          for (let i = 0; i < this.images.length; i++) {
+            formData.append('images', this.images[i]);
           }
         }
 
         const response = await axios.post(
-          'http://localhost:8881/api/activities',
+          'http://localhost:8088/api/activities',
           formData,
           {
             headers: {
               'Content-Type': 'multipart/form-data'
-            }
+            },
+            timeout: 30000,
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
           }
         );
 
         if (response.data.status === 'success') {
-          this.toast.success('บันทึกกิจกรรมสำเร็จ');
+          this.toast.success('บันทึกข้อมูลสำเร็จ');
           this.resetForm();
+          this.$emit('activity-added');
+        } else {
+          this.toast.error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
         }
-
       } catch (error) {
-        console.error('Error saving activity:', error);
-        this.toast.error(error.response?.data?.message || 'ไม่สามารถบันทึกกิจกรรมได้');
-      } finally {
-        this.isSubmitted = false;
+        console.error('Error submitting form:', error);
+        if (error.code === 'ECONNABORTED') {
+          this.toast.error("การเชื่อมต่อกับเซิร์ฟเวอร์หมดเวลา กรุณาลองใหม่อีกครั้ง");
+        } else {
+          this.toast.error(error.response?.data?.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        }
       }
     },
     resetForm() {
-      this.selectedSystemId = '';
-      this.importantInfo = '';
-      this.details = '';
-      this.images.forEach(image => {
-        if (image.preview) {
-          URL.revokeObjectURL(image.preview);
-        }
-      });
+      this.selectedSystemId = "";
+      this.importantInfo = "";
+      this.details = "";
       this.files = [];
       this.images = [];
       this.importantInfoList = [];
+      this.isSubmitted = false;
+     
     },
     async fetchActivities() {
       if (!this.selectedSystemId || !this.importantInfo) {
@@ -450,14 +375,15 @@ export default {
         });
 
         const response = await axios.get(
-          `http://localhost:8881/api/activities/${this.selectedSystemId}/${this.importantInfo}`
+          `http://localhost:8088/api/activities/${this.selectedSystemId}/${this.importantInfo}`
         );
         
         console.log('API Response:', response.data);
         
-        this.activities = response.data;
-        
-        if (this.activities.length === 0) {
+        if (response.data) {
+          this.activities = response.data;
+        } else {
+          this.activities = [];
           this.toast.info('ยังไม่มีข้อมูลกิจกรรม');
         }
 
@@ -480,55 +406,30 @@ export default {
       const parts = filePath.split("/");
       return parts[parts.length - 1];
     },
-    removeFile(index) {
-      this.files.splice(index, 1);
-    },
-    handleFileDrop(event) {
-      const files = event.dataTransfer.files;
-      for (let i = 0; i < files.length; i++) {
-        if (this.isValidFileType(files[i])) {
-          this.files.push(files[i]);
-        }
+    getImagePreviewUrl(image) {
+      try {
+        return image ? URL.createObjectURL(image) : "";
+      } catch (error) {
+        console.error("Error creating image URL:", error);
+        return "";
       }
-    },
-    isValidFileType(file) {
-      const validTypes = ['.pdf', '.doc', '.docx'];
-      const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-      return validTypes.includes(extension);
     },
   },
   watch: {
-    selectedSystemId(newVal) {
-      if (newVal) {
-        this.fetchImportantInfo();
-      } else {
-        this.importantInfo = '';
-        this.importantInfoList = [];
-        this.activities = [];
-      }
+    importantInfo() {
+      this.fetchActivities();
     },
-    importantInfo(newVal) {
-      if (newVal) {
-        this.fetchActivities();
-      } else {
-        this.activities = [];
-      }
-    }
   },
-  mounted() {
-    this.fetchSystems();
+  async mounted() {
+    await this.fetchDeptInfo();
   },
   beforeUnmount() {
-    this.images.forEach(image => {
-      if (image.preview) {
-        URL.revokeObjectURL(image.preview);
+    // Cleanup image URLs
+    this.images.forEach((image) => {
+      if (image) {
+        URL.revokeObjectURL(this.getImagePreviewUrl(image));
       }
     });
-  },
-  computed: {
-    hasActivities() {
-      return this.activities && this.activities.length > 0;
-    }
   },
 };
 </script>
@@ -662,12 +563,11 @@ textarea:focus {
   display: none;
 }
 
-.file-list,
+.file-preview,
 .image-preview {
   margin-top: 16px;
 }
 
-.file-item,
 .preview-item {
   background: white;
   padding: 8px;

@@ -27,7 +27,14 @@ const mockEmployees = [
   //   dept_full: "แผนกIT",
   //   first_name: "ธีรภัทร",
   //   last_name: "ทองประภา"
-  // }
+  // },
+  //   {
+  //   emp_id: 498146441,
+  //   dept_change_code: "530105002000302",
+  //   dept_full: "แผนกการเงิน",
+  //   first_name: "ปิยะพรพร",
+  //   last_name: "สุขสวัสดิ์ดิ"
+  // },
 ];
 
 // ฟังก์ชันสำหรับดึงข้อมูลพนักงาน
@@ -80,6 +87,49 @@ const findAvailablePort = async (startPort) => {
   }
   return port;
 };
+
+
+app.post('/loginto', (req, res) => {
+  const { emp_id } = req.body;
+
+  const query = `SELECT * FROM employees WHERE emp_id = ?`;
+  db.query(query, [emp_id], (err, result) => {
+      if (err) {
+          console.error('Error fetching user details:', err);
+          return res.status(500).json({ message: "ไม่สามารถดึงข้อมูลผู้ใช้ได้" });
+      }
+
+      if (result.length === 0) {
+          return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้" });
+      }
+
+      const user = result[0];
+      const role = getDepartmentRole(user.dept_change_code);
+
+      const token = jwt.sign(
+          {
+              emp_id: user.emp_id,
+              first_name: user.first_name,
+              last_name: user.last_name,
+              dept_full: user.dept_full,
+              role: role // ใช้สิทธิ์ที่กำหนดตามแผนก
+          },
+          SECRET_KEY,
+          { expiresIn: '1d' }
+      );
+
+      res.json({
+          message: "เข้าสู่ระบบสำเร็จ",
+          token: token,
+          user: {
+              name: `${user.first_name} ${user.last_name}`,
+              role: role,
+              dept_full: user.dept_full,
+              emp_id: user.emp_id
+          }
+      });
+  });
+});
 
 // เริ่ม server
 const startServer = async () => {
