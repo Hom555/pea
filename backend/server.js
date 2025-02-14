@@ -46,14 +46,18 @@ app.use(fileUpload({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-app.use('/uploads', express.static('uploads'));
+// แก้ไขการจัดการ static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use('/uploads', (req, res, next) => {
-  const filePath = path.join(__dirname, req.url);
+// ปรับปรุงการจัดการการเข้าถึงไฟล์
+app.get('/uploads/*', (req, res) => {
+  const filePath = path.join(__dirname, req.path);
   console.log('Accessing file:', filePath);
+  
   if (fs.existsSync(filePath)) {
-    next();
+    res.sendFile(filePath);
   } else {
+    console.log('File not found:', filePath);
     res.status(404).send('File not found');
   }
 });
@@ -592,12 +596,12 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       });
     }
 
-    // จัดการกับการลบไฟล์
+    // จัดการกับการลบไฟล์และไฟล์เดิม
     let currentFilePaths = detail[0].file_path ? detail[0].file_path.split(',') : [];
     
     if (deletedFile) {
       // ลบไฟล์จากระบบไฟล์
-      const fullPath = path.join(__dirname, deletedFile);
+      const fullPath = path.join(__dirname, 'uploads', path.basename(deletedFile));
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
         console.log('Deleted file:', fullPath);
@@ -607,12 +611,32 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       currentFilePaths = currentFilePaths.filter(path => path !== deletedFile);
     }
 
+    // จัดการกับไฟล์ใหม่
+    if (req.files && req.files.files) {
+      const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+      
+      // สร้างโฟลเดอร์ถ้ายังไม่มี
+      const uploadDir = path.join(__dirname, 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      // อัพโหลดไฟล์ใหม่
+      for (const file of files) {
+        const filename = `${Date.now()}-${file.name}`;
+        const uploadPath = path.join(uploadDir, filename);
+        
+        await file.mv(uploadPath);
+        currentFilePaths.push('/uploads/' + filename);
+      }
+    }
+
     // อัพเดตข้อมูล
     const updateData = {
       important_info: importantInfo.trim(),
       reference_no: referenceNo.trim(),
       additional_info: additionalInfo?.trim() || null,
-      file_path: currentFilePaths.join(',')
+      file_path: currentFilePaths.length > 0 ? currentFilePaths.join(',') : null
     };
 
     const updateFields = Object.keys(updateData)
@@ -628,20 +652,23 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       WHERE id = ?
     `, updateValues);
 
+    // ดึงข้อมูลที่อัพเดตแล้วเพื่อส่งกลับ
+    const [updatedDetail] = await conn.query(`
+      SELECT * FROM system_details WHERE id = ?
+    `, [id]);
+
     res.json({
       success: true,
       message: 'อัปเดตข้อมูลสำเร็จ',
-      data: {
-        id,
-        ...updateData
-      }
+      data: updatedDetail[0]
     });
 
   } catch (error) {
     console.error('Error updating system details:', error);
     res.status(500).json({
       success: false,
-      message: 'ไม่สามารถอัปเดตข้อมูลได้'
+      message: 'ไม่สามารถอัปเดตข้อมูลได้',
+      error: error.message
     });
   } finally {
     if (conn) conn.release();

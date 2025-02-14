@@ -93,7 +93,7 @@
                         :key="filePath"
                         class="file-item">
                         <a
-                          :href="'http://localhost:8881' + filePath"
+                          :href="`http://localhost:8088${filePath}`"
                           target="_blank"
                           class="file-link"
                         >
@@ -117,7 +117,7 @@
                       :key="filePath"
                       class="file-item">
                       <a
-                        :href="'http://localhost:8881' + filePath"
+                        :href="`http://localhost:8088${filePath}`"
                         target="_blank"
                         class="file-link"
                       >
@@ -316,6 +316,7 @@ export default {
         this.deleteDetail(detail);
       }
     },
+    
     async deleteDetail(detail) {
       try {
         const response = await axios.delete(
