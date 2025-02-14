@@ -374,8 +374,18 @@ export default {
     },
     getFileName(filePath) {
       if (!filePath) return "";
-      const parts = filePath.split("/");
-      return parts[parts.length - 1];
+      try {
+        const parts = filePath.split("/");
+        const filename = parts[parts.length - 1];
+        // แยกส่วนของ timestamp ออกจากชื่อไฟล์
+        const [timestamp, ...nameParts] = filename.split('-');
+        // รวมส่วนที่เหลือของชื่อไฟล์กลับเข้าด้วยกัน (กรณีที่ชื่อไฟล์มีเครื่องหมาย - อยู่ด้วย)
+        const originalName = nameParts.join('-');
+        return originalName;
+      } catch (error) {
+        console.error("Error getting filename:", error);
+        return "Unknown file";
+      }
     },
     openImage(imageUrl) {
       window.open(imageUrl, '_blank');

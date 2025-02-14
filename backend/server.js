@@ -62,10 +62,17 @@ app.get('/uploads/*', (req, res) => {
   }
 });
 
+app.use((req, res, next) => {
+  res.header('Content-Type', 'text/html; charset=utf-8');
+  next();
+});
+
 function generateUniqueFilename(originalname) {
   const timestamp = Date.now();
-  const extension = originalname.split('.').pop();
-  return `${timestamp}-${Math.random().toString(36).substring(7)}.${extension}`;
+  // Encode Thai filename
+  const sanitizedName = Buffer.from(originalname, 'latin1').toString('utf8');
+  const extension = sanitizedName.split('.').pop();
+  return `${timestamp}-${sanitizedName}`;
 }
 
 const storage = multer.diskStorage({
@@ -470,7 +477,10 @@ app.post('/api/system-details', getUserData, async (req, res) => {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
       
       const uploadedFiles = await Promise.all(files.map(async (file) => {
-        const filename = `${Date.now()}-${file.name}`;
+        // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
+        const timestamp = Date.now();
+        const originalName = Buffer.from(file.name, 'binary').toString('utf8');
+        const filename = `${timestamp}-${originalName}`;
         const uploadPath = path.join(__dirname, 'uploads', filename);
         
         await file.mv(uploadPath);
@@ -623,9 +633,11 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
       // อัพโหลดไฟล์ใหม่
       for (const file of files) {
-        const filename = `${Date.now()}-${file.name}`;
+        // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
+        const timestamp = Date.now();
+        const originalName = Buffer.from(file.name, 'binary').toString('utf8');
+        const filename = `${timestamp}-${originalName}`;
         const uploadPath = path.join(uploadDir, filename);
-        
         await file.mv(uploadPath);
         currentFilePaths.push('/uploads/' + filename);
       }
@@ -793,7 +805,10 @@ app.post('/api/activities', getUserData, async (req, res) => {
       if (req.files.files) {
         const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
         for (const file of files) {
-          const filename = `${Date.now()}-${file.name}`;
+          // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
+          const timestamp = Date.now();
+          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
+          const filename = `${timestamp}-${originalName}`;
           const uploadPath = path.join(uploadDir, filename);
           await file.mv(uploadPath);
           filePaths.push('/uploads/' + filename);
@@ -803,7 +818,10 @@ app.post('/api/activities', getUserData, async (req, res) => {
       if (req.files.images) {
         const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
         for (const file of images) {
-          const filename = `${Date.now()}-${file.name}`;
+          // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
+          const timestamp = Date.now();
+          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
+          const filename = `${timestamp}-${originalName}`;
           const uploadPath = path.join(uploadDir, filename);
           await file.mv(uploadPath);
           imagePaths.push('/uploads/' + filename);
