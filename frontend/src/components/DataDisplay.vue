@@ -80,26 +80,51 @@
                 <span v-else class="cell-text">{{ detail.additional_info || "-" }}</span>
               </td>
               <td>
-                <div v-if="detail.editing">
-                  <input
-                    type="file"
-                    @change="handleFileChange($event, detail)"
-                    multiple
-                    class="file-input"
-                  />
+                <div v-if="detail.editing" class="file-list">
+                  <div class="edit-files-section">
+                    <input
+                      type="file"
+                      @change="handleFileChange($event, detail)"
+                      multiple
+                      class="file-input"
+                    />
+                    <div class="current-files" v-if="detail.file_path">
+                      <div v-for="(filePath, fileIndex) in detail.file_path.split(',')"
+                        :key="filePath"
+                        class="file-item">
+                        <a
+                          :href="'http://localhost:8881' + filePath"
+                          target="_blank"
+                          class="file-link"
+                        >
+                          <i class="fas fa-file-alt"></i>
+                          {{ getFileName(filePath) }}
+                        </a>
+                        <button 
+                          @click="deleteFile(detail, fileIndex)"
+                          class="delete-file-btn"
+                          title="ลบไฟล์"
+                        >
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div v-else class="file-list">
                   <template v-if="detail.file_path">
-                    <a
-                      v-for="filePath in detail.file_path.split(',')"
+                    <div v-for="(filePath, fileIndex) in detail.file_path.split(',')"
                       :key="filePath"
-                      :href="'http://localhost:8881' + filePath"
-                      target="_blank"
-                      class="file-link"
-                    >
-                      <i class="fas fa-file-alt"></i>
-                      {{ getFileName(filePath) }}
-                    </a>
+                      class="file-item">
+                      <a
+                        :href="'http://localhost:8881' + filePath"
+                        target="_blank"
+                        class="file-link"
+                      >
+                        <i class="fas fa-file-alt"></i>
+                        {{ getFileName(filePath) }}
+                      </a>
+                    </div>
                   </template>
                   <div v-else class="no-files">ไม่มีไฟล์แนบ</div>
                 </div>
@@ -334,6 +359,53 @@ export default {
     async refreshData() {
       if (this.selectedSystemId) {
         await this.fetchSystemDetails();
+      }
+    },
+    async deleteFile(detail, fileIndex) {
+      if (!confirm('คุณต้องการลบไฟล์นี้ใช่หรือไม่?')) {
+        return;
+      }
+
+      try {
+        const filePaths = detail.file_path.split(',');
+        const fileToDelete = filePaths[fileIndex];
+        
+        // Remove the file from the array
+        filePaths.splice(fileIndex, 1);
+        
+        // Update the file_path string
+        const updatedFilePath = filePaths.join(',');
+        
+        // Prepare the form data with all necessary fields
+        const formData = new FormData();
+        formData.append('importantInfo', detail.important_info);
+        formData.append('referenceNo', detail.reference_no);
+        formData.append('additionalInfo', detail.additional_info || '');
+        formData.append('deletedFile', fileToDelete);
+        formData.append('file_path', updatedFilePath || '');
+
+        // Send the update request
+        const response = await axios.put(
+          `http://localhost:8088/api/system-details/${detail.id}`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+
+        if (response.status === 200) {
+          // Update the local state
+          detail.file_path = updatedFilePath;
+          this.toast.success('ลบไฟล์เรียบร้อยแล้ว');
+          
+          // อัพเดตข้อมูลในหน้าจอ
+          await this.fetchSystemDetails();
+        }
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        this.toast.error('ไม่สามารถลบไฟล์ได้: ' + (error.response?.data?.message || error.message));
       }
     }
   },
@@ -643,5 +715,60 @@ td {
   transition: all 0.3s ease;
   padding: 12px 15px;
   vertical-align: middle;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.file-item:last-child {
+  margin-bottom: 0;
+}
+
+.delete-file-btn {
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-file-btn:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.edit-files-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.current-files {
+  margin-top: 10px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.file-input {
+  padding: 8px;
+  border: 1px dashed #e0e0e0;
+  border-radius: 6px;
+  width: 100%;
+}
+
+.file-input:hover {
+  border-color: #3498db;
 }
 </style>

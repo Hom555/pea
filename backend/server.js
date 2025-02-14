@@ -559,7 +559,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
-    const { importantInfo, referenceNo, additionalInfo } = req.body;
+    const { importantInfo, referenceNo, additionalInfo, deletedFile } = req.body;
     const userDept = req.user.dept_change_code;
 
     if (!importantInfo || !referenceNo) {
@@ -573,7 +573,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
     // ตรวจสอบว่าข้อมูลนี้เป็นของแผนกผู้ใช้หรือไม่
     const [detail] = await conn.query(`
-      SELECT dept_change_code 
+      SELECT dept_change_code, file_path 
       FROM system_details 
       WHERE id = ?
     `, [id]);
@@ -592,11 +592,27 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       });
     }
 
-    // อัปเดตข้อมูล
+    // จัดการกับการลบไฟล์
+    let currentFilePaths = detail[0].file_path ? detail[0].file_path.split(',') : [];
+    
+    if (deletedFile) {
+      // ลบไฟล์จากระบบไฟล์
+      const fullPath = path.join(__dirname, deletedFile);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+        console.log('Deleted file:', fullPath);
+      }
+
+      // ลบ path ของไฟล์ออกจาก array
+      currentFilePaths = currentFilePaths.filter(path => path !== deletedFile);
+    }
+
+    // อัพเดตข้อมูล
     const updateData = {
       important_info: importantInfo.trim(),
       reference_no: referenceNo.trim(),
-      additional_info: additionalInfo?.trim() || null
+      additional_info: additionalInfo?.trim() || null,
+      file_path: currentFilePaths.join(',')
     };
 
     const updateFields = Object.keys(updateData)
