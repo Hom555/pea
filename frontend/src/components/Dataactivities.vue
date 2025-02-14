@@ -292,7 +292,7 @@ export default {
 
       try {
         this.loading = true;
-        const response = await axios.get(`http://localhost:8881/api/system-details/${this.selectedSystemId}`);
+        const response = await axios.get(`http://localhost:8088/api/system-details/${this.selectedSystemId}`);
         console.log("Response from system-details:", response.data);
         
         if (response.data) {
@@ -313,17 +313,50 @@ export default {
       }
     },
     async fetchActivities() {
-      this.loading = true;
-      this.error = null;
-      
+      if (!this.selectedSystemId || !this.selectedImportantInfoId) {
+        console.log('Missing required params:', { 
+          systemId: this.selectedSystemId, 
+          importantInfoId: this.selectedImportantInfoId 
+        });
+        return;
+      }
+
       try {
-        const response = await axios.get('http://localhost:8881/api/activities');
+        this.loading = true;
+        this.error = null;
+        
+        console.log('Fetching activities for:', {
+          systemId: this.selectedSystemId,
+          importantInfoId: this.selectedImportantInfoId,
+          userDept: this.getUserDepartment?.dept_change_code
+        });
+
+        const response = await axios.get(
+          `http://localhost:8088/api/activities/${this.selectedSystemId}/${this.selectedImportantInfoId}`
+        );
+        
         console.log('API Response:', response.data);
-        this.activities = response.data;
+        
+        if (Array.isArray(response.data)) {
+          // กรองข้อมูลตามแผนกของผู้ใช้
+          this.activities = response.data.filter(activity => 
+            activity.dept_change_code === this.getUserDepartment?.dept_change_code
+          );
+          
+          console.log('Filtered activities:', this.activities);
+          
+          if (this.activities.length === 0) {
+            this.error = 'ไม่พบข้อมูลกิจกรรมของแผนกคุณ';
+          }
+        } else {
+          this.activities = [];
+          this.error = 'ไม่พบข้อมูลกิจกรรม';
+        }
+
       } catch (error) {
-        console.error('Error:', error);
-        this.error = 'ไม่สามารถโหลดข้อมูลกิจกรรมได้';
-        this.toast.error(this.error);
+        console.error('Error fetching activities:', error);
+        this.error = 'ไม่สามารถดึงข้อมูลกิจกรรมได้';
+        this.activities = [];
       } finally {
         this.loading = false;
       }
@@ -366,7 +399,7 @@ export default {
         }
 
         await axios.put(
-          `http://localhost:8881/api/activities/${activity.id}`,
+          `http://localhost:8088/api/activities/${activity.id}`,
           {
             details: newDetails,
           }
@@ -383,7 +416,7 @@ export default {
       if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
         try {
           await axios.delete(
-            `http://localhost:8881/api/activities/${activity.id}`
+            `http://localhost:8088/api/activities/${activity.id}`
           );
           await this.fetchActivities();
           alert("ลบข้อมูลสำเร็จ");
@@ -437,7 +470,7 @@ export default {
         formData.append("removedImages", JSON.stringify(this.removedImages));
 
         const response = await axios.put(
-          `http://localhost:8881/api/activities/${activity.id}`,
+          `http://localhost:8088/api/activities/${activity.id}`,
           formData,
           {
             headers: {

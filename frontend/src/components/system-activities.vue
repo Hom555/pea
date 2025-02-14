@@ -271,8 +271,8 @@ export default {
           this.toast.info('ไม่พบข้อมูลสำคัญสำหรับระบบนี้');
         }
       } catch (error) {
-        console.error('Error fetching important info:', error);
-        this.toast.error('ไม่สามารถดึงข้อมูลสำคัญได้');
+        // console.error('Error fetching important info:', error);
+        // this.toast.error('ไม่สามารถดึงข้อมูลสำคัญได้');
         this.importantInfoList = [];
       }
     },
