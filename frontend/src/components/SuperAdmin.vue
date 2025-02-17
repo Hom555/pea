@@ -302,7 +302,7 @@ export default {
         if (!this.selectedSystem) return;
         
         const response = await axios.delete(
-          `http://localhost:8881/api/system-record/${this.selectedSystem.id}`
+          `http://localhost:8088/api/system-record/${this.selectedSystem.id}`
         );
 
         if (response.data.success) {
@@ -324,7 +324,7 @@ export default {
     },
     async addSystem() {
       try {
-        const response = await axios.post('http://localhost:8881/api/system-record', this.newSystem);
+        const response = await axios.post('http://localhost:8088/api/system-record', this.newSystem);
         this.systems.unshift(response.data);
         this.showAddModal = false;
         this.newSystem = {
@@ -356,7 +356,7 @@ export default {
         console.log('Attempting to toggle status for system:', systemId);
         
         const response = await axios.put(
-          `http://localhost:8881/api/system-records/${systemId}/toggle-status`
+          `http://localhost:8088/api/system-records/${systemId}/toggle-status`
         );
 
         console.log('Response from server:', response.data);
@@ -398,7 +398,7 @@ export default {
       try {
         const fileArray = JSON.parse(paths);
         return fileArray.map(path => ({
-          path: `http://localhost:8881${path}`,
+          path: `http://localhost:8088${path}`,
           name: path.split('/').pop()
         }));
       } catch (error) {

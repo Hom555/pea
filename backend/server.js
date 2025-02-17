@@ -1298,14 +1298,30 @@ app.get('/api/admin-users', async (req, res) => {
 
 // === System Status Management ===
 // ใช้ใน: datasystemrecord.vue
-app.put('/api/system-records/:id/toggle-status', async (req, res) => {
+app.put('/api/system-records/:id/toggle-status', getUserData, async (req, res) => {
+  let conn;
   try {
     const systemId = req.params.id;
     console.log('Toggling status for system:', systemId);
     
+    conn = await pool.getConnection();
+
+    // ตรวจสอบสิทธิ์ผู้ใช้
+    const [userRole] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [req.user.emp_id]
+    );
+
+    // ถ้าไม่ใช่ Admin หรือ SuperAdmin ไม่อนุญาตให้เปลี่ยนสถานะ
+    if (!userRole.length || (userRole[0].role_id !== 2 && userRole[0].role_id !== 3)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์เปลี่ยนสถานะการใช้งานระบบ เฉพาะผู้ดูแลระบบเท่านั้น'
+      });
+    }
+    
     // ดึงข้อมูลสถานะปัจจุบัน
-    const connection = await pool.getConnection();
-    const [rows] = await connection.query(
+    const [rows] = await conn.query(
       'SELECT is_active FROM system_master WHERE id = ?',
       [systemId]
     );
@@ -1323,7 +1339,7 @@ app.put('/api/system-records/:id/toggle-status', async (req, res) => {
     console.log('New status will be:', newStatus);
 
     // อัพเดตสถานะในฐานข้อมูล
-    await connection.execute(
+    await conn.query(
       'UPDATE system_master SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [newStatus, systemId]
     );
@@ -1340,8 +1356,10 @@ app.put('/api/system-records/:id/toggle-status', async (req, res) => {
     console.error('Error toggling system status:', error);
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถเปลี่ยนสถานะการใช้งานได้'
+      message: 'ไม่สามารถเปลี่ยนสถานะการใช้งานได้ กรุณาลองใหม่อีกครั้ง'
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
