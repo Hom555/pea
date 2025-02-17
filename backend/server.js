@@ -302,7 +302,56 @@ app.get('/api/data', async (req, res) => {
 });
 
 // === System Records Management ===
-// ใช้ใน: datasystemrecord.vue, Dataactivities.vue, system-activities.vue
+// ใช้ใน: SuperAdmin.vue - สำหรับดูข้อมูลทุกระบบ
+app.get('/api/all-system-records', getUserData, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    
+    // ตรวจสอบ role_id จากฐานข้อมูล
+    const [userRole] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [req.user.emp_id]
+    );
+
+    // ถ้าไม่ใช่ Admin หรือ SuperAdmin ไม่อนุญาตให้เข้าถึง
+    if (!userRole.length || (userRole[0].role_id !== 2 && userRole[0].role_id !== 3)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์เข้าถึงข้อมูล'
+      });
+    }
+
+    // ดึงข้อมูลระบบทั้งหมด
+    const [systems] = await conn.query(`
+      SELECT 
+        id,
+        name_th,
+        name_en,
+        dept_change_code,
+        dept_full,
+        created_at,
+        updated_at,
+        is_active
+      FROM system_master
+      ORDER BY created_at DESC
+    `);
+
+    console.log('Found all systems:', systems.length);
+    res.json(systems);
+
+  } catch (error) {
+    console.error('Error fetching all systems:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// ใช้ใน: datasystemrecord.vue - สำหรับดูข้อมูลเฉพาะแผนก
 app.get('/api/system-records', getUserData, async (req, res) => {
   let conn;
   try {
@@ -312,7 +361,7 @@ app.get('/api/system-records', getUserData, async (req, res) => {
     const userDept = req.user.dept_change_code;
     console.log('Fetching systems for dept:', userDept);
 
-    // เพิ่ม WHERE clause เพื่อกรองตามแผนก
+    // ดึงข้อมูลเฉพาะแผนกของผู้ใช้
     const [systems] = await conn.query(`
       SELECT 
         id,
@@ -1319,7 +1368,7 @@ app.get('/api/check-permission', getUserData, async (req, res) => {
     if (!empId) {
       return res.status(401).json({
         status: 'error',
-        message: 'ไม่พบข้อมูลผู้ใช้'
+        message: 'ไม่พบข้อมูลผู้ใช้งาน'
       });
     }
 
@@ -1334,7 +1383,8 @@ app.get('/api/check-permission', getUserData, async (req, res) => {
         status: 'success',
         data: {
           isAdmin: false,
-          role_id: 1 // default เป็น user ทั่วไป
+          role_id: 1, // ผู้ใช้งานทั่วไป
+          message: 'ตรวจสอบสิทธิ์สำเร็จ'
         }
       });
     }
@@ -1351,10 +1401,10 @@ app.get('/api/check-permission', getUserData, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error checking permission:', error);
+    console.error('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์:', error);
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถตรวจสอบสิทธิ์ได้'
+      message: 'ไม่สามารถตรวจสอบสิทธิ์ผู้ใช้งานได้'
     });
   } finally {
     if (conn) conn.release();

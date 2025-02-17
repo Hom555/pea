@@ -281,11 +281,11 @@ export default {
     },
     async fetchSystems() {
       try {
-        const response = await axios.get('http://localhost:8881/api/system-records');
+        const response = await axios.get('http://localhost:8088/api/all-system-records');
         this.systems = response.data;
       } catch (error) {
-        console.error('Error fetching systems:', error);
-        this.toast.error('ไม่สามารถโหลดข้อมูลระบบได้');
+        console.error('ไม่สามารถดึงข้อมูลระบบ:', error);
+        this.toast.error('ไม่สามารถโหลดข้อมูลระบบได้ กรุณาลองใหม่อีกครั้ง');
       }
     },
     editSystem(system) {
