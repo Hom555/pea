@@ -1309,6 +1309,94 @@ app.get('/api/check-connection', getUserData, (req, res) => {
   });
 });
 
+// === Permission Check ===
+app.get('/api/check-permission', getUserData, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const empId = req.user.emp_id;
+
+    if (!empId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลผู้ใช้'
+      });
+    }
+
+    // ดึงข้อมูล role_id จากตาราง users โดยตรง
+    const [user] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [empId]
+    );
+
+    if (user.length === 0) {
+      return res.json({
+        status: 'success',
+        data: {
+          isAdmin: false,
+          role_id: 1 // default เป็น user ทั่วไป
+        }
+      });
+    }
+
+    // ตรวจสอบว่าเป็น admin หรือ superadmin
+    const isAdmin = user[0].role_id === 2 || user[0].role_id === 3;
+
+    res.json({
+      status: 'success',
+      data: {
+        isAdmin: isAdmin,
+        role_id: user[0].role_id
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking permission:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถตรวจสอบสิทธิ์ได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// === User Role Check ===
+app.get('/api/user-role/:emp_id', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const empId = req.params.emp_id;
+
+    // ดึงข้อมูล role_id จากตาราง users
+    const [user] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [empId]
+    );
+
+    if (user.length === 0) {
+      return res.json({
+        status: 'success',
+        role_id: 1 // default เป็น user ทั่วไป
+      });
+    }
+
+    res.json({
+      status: 'success',
+      role_id: user[0].role_id
+    });
+
+  } catch (error) {
+    console.error('Error getting user role:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลสิทธิ์ผู้ใช้ได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // Routes - ย้ายมาไว้หลัง middleware ทั้งหมด
 app.use('/api', activitiesRouter);
 

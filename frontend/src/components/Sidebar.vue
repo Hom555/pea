@@ -120,8 +120,13 @@
           <div class="user-details">
             <div class="username">{{ fullName }}</div>
             <div class="department">{{ department }}</div>
+            <div class="user-role-info">
+              <span class="emp-id">รหัสพนักงาน: {{ userData.empId || 'ไม่พบข้อมูล' }}</span>
+              <span class="role-badge" :class="getRoleBadgeClass">{{ getRoleName }}</span>
+            </div>
           </div>
         </div>
+        
         <button @click="handleLogout" class="logout-btn" :title="isCollapsed ? 'ออกจากระบบ' : ''">
           <i class="fas fa-sign-out-alt"></i>
           <span v-if="!isCollapsed">ออกจากระบบ</span>
@@ -161,8 +166,47 @@ export default {
     department() {
       return this.userData.department || "ไม่พบแผนก";
     },
+    userRole() {
+      let roleName = 'ไม่พบข้อมูล';
+      switch (this.userData.role_id) {
+        case 1:
+          roleName = 'ผู้ใช้งานทั่วไป';
+          break;
+        case 2:
+          roleName = 'ผู้ดูแลระบบ';
+          break;
+        case 3:
+          roleName = 'ผู้ดูแลระบบระดับสูง';
+          break;
+      }
+      return `รหัสพนักงาน: ${this.userData.empId || 'ไม่พบข้อมูล'} | สิทธิ์: ${roleName}`;
+    },
     isAdmin() {
       return this.userData.role_id === 2 || this.userData.role_id === 3;
+    },
+    getRoleName() {
+      switch (this.userData.role_id) {
+        case 1:
+          return 'ผู้ใช้งานทั่วไป';
+        case 2:
+          return 'ผู้ดูแลระบบ';
+        case 3:
+          return 'ผู้ดูแลระบบระดับสูง';
+        default:
+          return 'ไม่พบข้อมูล';
+      }
+    },
+    getRoleBadgeClass() {
+      switch (this.userData.role_id) {
+        case 1:
+          return 'role-user';
+        case 2:
+          return 'role-admin';
+        case 3:
+          return 'role-superadmin';
+        default:
+          return 'role-unknown';
+      }
     }
   },
   async created() {
@@ -181,16 +225,26 @@ export default {
         console.log('User data:', user);
 
         if (user.emp_id) {
-          const title = user.title_s_desc ? `${user.title_s_desc} ` : '';
-          const firstName = user.first_name || '';
-          const lastName = user.last_name || '';
-          
-          this.userData = {
-            fullName: `${title}${firstName} ${lastName}`.trim(),
-            department: user.dept_full || "ไม่ระบุแผนก",
-            empId: user.emp_id,
-            role_id: user.role_id
-          };
+          // ดึงข้อมูล role_id จากฐานข้อมูลของเรา
+          try {
+            const roleResponse = await axios.get(`http://localhost:8088/api/user-role/${user.emp_id}`);
+            console.log('Role Response:', roleResponse.data);
+            
+            this.userData = {
+              empId: user.emp_id,
+              role_id: roleResponse.data.role_id,
+              fullName: `${user.title_s_desc || ''} ${user.first_name || ''} ${user.last_name || ''}`.trim(),
+              department: user.dept_full || "ไม่ระบุแผนก",
+            };
+          } catch (roleError) {
+            console.error('Error fetching role:', roleError);
+            this.userData = {
+              empId: user.emp_id,
+              role_id: null,
+              fullName: `${user.title_s_desc || ''} ${user.first_name || ''} ${user.last_name || ''}`.trim(),
+              department: user.dept_full || "ไม่ระบุแผนก",
+            };
+          }
 
           // เก็บข้อมูลแผนกใน store
           this.$store.dispatch('updateUserDepartment', {
@@ -199,16 +253,16 @@ export default {
           });
 
           console.log('Updated userData:', this.userData);
+          
+          // กำหนด isAdmin ตามค่า role_id
+          this.isAdmin = this.userData.role_id === 2 || this.userData.role_id === 3;
         }
-      }
-
-      // ตรวจสอบสิทธิ์
-      const permResponse = await axios.get('http://localhost:8088/api/check-permission');
-      if (permResponse.data.status === 'success') {
-        this.isAdmin = permResponse.data.data.isAdmin;
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+      }
     }
   },
   methods: {
@@ -470,6 +524,49 @@ export default {
 
 .toggle-btn:hover {
   background: #f1f5f9;
+  color: #64748b;
+}
+
+.user-role-info {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.emp-id {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.role-user {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+.role-admin {
+  background-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.role-superadmin {
+  background-color: #fde68a;
+  color: #92400e;
+}
+
+.role-unknown {
+  background-color: #e2e8f0;
   color: #64748b;
 }
 </style>

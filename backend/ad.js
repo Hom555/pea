@@ -7,13 +7,13 @@ app.use(express.json());
 
 // Mock Data
 const mockEmployees = [
-  {
-    emp_id: 498146444,
-    dept_change_code: "530105002000301",
-    dept_full: "แผนกพัฒนาระบบงานด้านการเงิน",
-    first_name: "วิลัย",
-    last_name: "บุญญะ"
-  },
+  // {
+  //   emp_id: 498146444,
+  //   dept_change_code: "530105002000301",
+  //   dept_full: "แผนกพัฒนาระบบงานด้านการเงิน",
+  //   first_name: "วิลัย",
+  //   last_name: "บุญญะ"
+  // },
   // {
   //   emp_id: 498146445,
   //   dept_change_code: "530105002000302",
@@ -21,13 +21,13 @@ const mockEmployees = [
   //   first_name: "ปิยะพร",
   //   last_name: "สุขสวัสดิ์"
   // },
-  // {
-  //   emp_id: 498146446,
-  //   dept_change_code: "530105002000303",
-  //   dept_full: "แผนกIT",
-  //   first_name: "ธีรภัทร",
-  //   last_name: "ทองประภา"
-  // },
+  {
+    emp_id: 498146446,
+    dept_change_code: "530105002000303",
+    dept_full: "แผนกIT",
+    first_name: "ธีรภัทร",
+    last_name: "ทองประภา"
+  },
   //   {
   //   emp_id: 498146441,
   //   dept_change_code: "530105002000302",
