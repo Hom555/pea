@@ -304,11 +304,11 @@ export default {
       try {
         const parts = filePath.split("/");
         const filename = parts[parts.length - 1];
-        // แยกส่วนของ timestamp ออกจากชื่อไฟล์
-        const [timestamp, ...nameParts] = filename.split('-');
-        // รวมส่วนที่เหลือของชื่อไฟล์กลับเข้าด้วยกัน (กรณีที่ชื่อไฟล์มีเครื่องหมาย - อยู่ด้วย)
-        const originalName = nameParts.join('-');
-        return originalName;
+        // Split on the first hyphen only to separate timestamp from filename
+        const firstHyphenIndex = filename.indexOf('-');
+        if (firstHyphenIndex === -1) return filename;
+        // Return everything after the first hyphen
+        return filename.substring(firstHyphenIndex + 1);
       } catch (error) {
         console.error("Error getting filename:", error);
         return "Unknown file";

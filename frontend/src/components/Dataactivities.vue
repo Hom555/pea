@@ -106,44 +106,105 @@
                     v-model="editedDetails"
                     class="edit-textarea"
                     placeholder="รายละเอียด"
-                    @keyup.enter="saveEdit(activity)"
-                    @keyup.esc="cancelEdit"
                   ></textarea>
-                  <div class="edit-actions">
-                    <button
-                      @click="saveEdit(activity)"
-                      class="btn-save"
-                      title="บันทึก"
-                    >
-                      <i class="fas fa-check"></i>
-                    </button>
-                    <button
-                      @click="cancelEdit"
-                      class="btn-cancel"
-                      title="ยกเลิก"
-                    >
-                      <i class="fas fa-times"></i>
-                    </button>
-                  </div>
-                  <div class="edit-files">
-                    <label for="newFiles">อัพโหลดไฟล์ใหม่:</label>
-                    <input type="file" id="newFiles" multiple @change="handleFileChange" />
-                    <div class="files-preview">
+                  
+                  <!-- จัดการไฟล์เอกสาร -->
+                  <div class="edit-files-section">
+                    <label class="file-label">
+                      <i class="fas fa-file-upload"></i>
+                      เพิ่มเอกสารแนบ
+                      <input
+                        type="file"
+                        @change="handleFileChange"
+                        multiple
+                        class="file-input"
+                      />
+                    </label>
+
+                    <!-- แสดงไฟล์ที่เลือกใหม่ -->
+                    <div v-if="newFiles.length > 0" class="new-files">
                       <div v-for="(file, index) in newFiles" :key="index" class="file-item">
-                        <span>{{ file.name }}</span>
-                        <button @click="removeNewFile(index)">ลบ</button>
+                        <i class="fas fa-file"></i>
+                        <span class="file-name">{{ file.name }}</span>
+                        <button @click="removeNewFile(index)" class="remove-btn">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- แสดงไฟล์ที่มีอยู่ -->
+                    <div v-if="activity.file_paths" class="current-files">
+                      <div v-for="(file, index) in activity.file_paths.split(',')"
+                        :key="file"
+                        class="file-item">
+                        <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
+                          <i class="fas fa-file-alt"></i>
+                          <span>{{ getFileName(file) }}</span>
+                        </a>
+                        <button @click="deleteFile(activity, index)" class="remove-btn">
+                          <i class="fas fa-times"></i>
+                        </button>
                       </div>
                     </div>
                   </div>
-                  <div class="edit-images">
-                    <label for="newImages">อัพโหลดรูปภาพใหม่:</label>
-                    <input type="file" id="newImages" multiple accept="image/*" @change="handleImageChange" />
-                    <div class="images-preview">
+
+                  <!-- จัดการรูปภาพ -->
+                  <div class="edit-images-section">
+                    <label class="file-label">
+                      <i class="fas fa-image"></i>
+                      เพิ่มรูปภาพ
+                      <input
+                        type="file"
+                        @change="handleImageChange"
+                        multiple
+                        accept="image/*"
+                        class="file-input"
+                      />
+                    </label>
+
+                    <!-- แสดงรูปภาพที่เลือกใหม่ -->
+                    <div v-if="newImages.length > 0" class="new-images">
                       <div v-for="(image, index) in newImages" :key="index" class="image-item">
-                        <img :src="getImagePreview(image)" alt="Preview" />
-                        <button @click="removeNewImage(index)">ลบ</button>
+                        <img :src="getImagePreview(image)" :alt="image.name" />
+                        <button @click="removeNewImage(index)" class="remove-btn">
+                          <i class="fas fa-times"></i>
+                        </button>
                       </div>
                     </div>
+
+                    <!-- แสดงรูปภาพที่มีอยู่ -->
+                    <div v-if="activity.image_paths" class="current-images">
+                      <div
+                        v-for="(image, iIndex) in activity.image_paths.split(',')"
+                        :key="iIndex"
+                        class="thumbnail-container"
+                      >
+                        <div class="thumbnail">
+                          <img
+                            :src="`http://localhost:8088${image}`"
+                            :alt="getFileName(image)"
+                            loading="lazy"
+                            @click="openImage(`http://localhost:8088${image}`)"
+                          />
+                          <button 
+                            v-if="editingId === activity.id"
+                            @click.stop="deleteImage(activity, iIndex)" 
+                            class="thumbnail-remove-btn"
+                          >
+                            <i class="fas fa-times"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="edit-actions">
+                    <button @click="saveEdit(activity)" class="btn-save">
+                      <i class="fas fa-save"></i> บันทึก
+                    </button>
+                    <button @click="cancelEdit" class="btn-cancel">
+                      <i class="fas fa-times"></i> ยกเลิก
+                    </button>
                   </div>
                 </div>
                 <div v-else>
@@ -151,35 +212,42 @@
                 </div>
               </td>
               <td>
-                <div class="file-list" v-if="activity.file_paths">
-                  <a
-                    v-for="(file, fIndex) in activity.file_paths.split(',')"
-                    :key="fIndex"
-                    :href="`http://localhost:8881${file}`"
-                    target="_blank"
-                    class="file-link"
-                  >
-                    <i class="fas fa-file-alt"></i>
-                    <span class="file-name">{{ getFileName(file) }}</span>
-                  </a>
+                <div class="file-list" v-if="!editingId || editingId !== activity.id">
+                  <template v-if="activity.file_paths">
+                    <a
+                      v-for="(file, fIndex) in activity.file_paths.split(',')"
+                      :key="fIndex"
+                      :href="`http://localhost:8088${file}`"
+                      target="_blank"
+                      class="file-link"
+                    >
+                      <i class="fas fa-file-alt"></i>
+                      <span class="file-name">{{ getFileName(file) }}</span>
+                    </a>
+                  </template>
+                  <span v-else class="no-files">-</span>
                 </div>
-                <span v-else class="no-files">-</span>
               </td>
               <td>
-                <div class="image-thumbnails" v-if="activity.image_paths">
-                  <div
-                    v-for="(image, iIndex) in activity.image_paths.split(',')"
-                    :key="iIndex"
-                    class="thumbnail"
-                    @click="openImage(`http://localhost:8881${image}`)"
-                  >
-                    <img
-                      :src="`http://localhost:8881${image}`"
-                      alt="Activity image"
-                    />
-                  </div>
+                <div class="image-thumbnails" v-if="!editingId || editingId !== activity.id">
+                  <template v-if="activity.image_paths">
+                    <div
+                      v-for="(image, iIndex) in activity.image_paths.split(',')"
+                      :key="iIndex"
+                      class="thumbnail-container"
+                    >
+                      <div class="thumbnail">
+                        <img
+                          :src="`http://localhost:8088${image}`"
+                          :alt="getFileName(image)"
+                          loading="lazy"
+                          @click="openImage(`http://localhost:8088${image}`)"
+                        />
+                      </div>
+                    </div>
+                  </template>
+                  <span v-else class="no-images">-</span>
                 </div>
-                <span v-else class="no-images">-</span>
               </td>
               <td class="text-center action-buttons">
                 <button
@@ -373,19 +441,11 @@ export default {
       });
     },
     getFileName(filePath) {
-      if (!filePath) return "";
-      try {
-        const parts = filePath.split("/");
-        const filename = parts[parts.length - 1];
-        // แยกส่วนของ timestamp ออกจากชื่อไฟล์
-        const [timestamp, ...nameParts] = filename.split('-');
-        // รวมส่วนที่เหลือของชื่อไฟล์กลับเข้าด้วยกัน (กรณีที่ชื่อไฟล์มีเครื่องหมาย - อยู่ด้วย)
-        const originalName = nameParts.join('-');
-        return originalName;
-      } catch (error) {
-        console.error("Error getting filename:", error);
-        return "Unknown file";
-      }
+      if (!filePath) return '';
+      const filename = filePath.split('/').pop();
+      const firstHyphenIndex = filename.indexOf('-');
+      if (firstHyphenIndex === -1) return filename;
+      return filename.substring(firstHyphenIndex + 1);
     },
     openImage(imageUrl) {
       window.open(imageUrl, '_blank');
@@ -439,13 +499,17 @@ export default {
     async startEdit(activity) {
       this.editingId = activity.id;
       this.editedDetails = activity.details;
+      this.editedActivity = {
+        ...activity,
+        editedInfo: {
+          details: activity.details,
+          file_paths: activity.file_paths,
+          image_paths: activity.image_paths
+        }
+      };
       this.newFiles = [];
       this.newImages = [];
-      this.removedFiles = [];
-      this.removedImages = [];
-      this.toast.info("เริ่มแก้ไขข้อมูล", {
-        timeout: 2000
-      });
+      this.toast.info("เริ่มแก้ไขข้อมูล");
     },
     cancelEdit() {
       this.editingId = null;
@@ -459,96 +523,114 @@ export default {
       });
     },
     async saveEdit(activity) {
-      if (!this.editedDetails.trim()) {
-        alert("กรุณากรอกรายละเอียด");
-        return;
-      }
-
       try {
+        if (!this.editedDetails.trim()) {
+          this.toast.error("กรุณากรอกรายละเอียด");
+          return;
+        }
+
         const formData = new FormData();
-        formData.append("details", this.editedDetails);
+        formData.append("details", this.editedDetails.trim());
+        formData.append("systemId", this.selectedSystemId);
+        formData.append("importantInfo", this.selectedImportantInfoId);
 
-        this.newFiles.forEach((file) => {
-          formData.append("files", file);
-        });
+        // เพิ่มไฟล์ใหม่
+        if (this.newFiles.length > 0) {
+          this.newFiles.forEach(file => {
+            formData.append("files", file);
+          });
+        }
 
-        this.newImages.forEach((image) => {
-          formData.append("images", image);
-        });
+        // เพิ่มรูปภาพใหม่
+        if (this.newImages.length > 0) {
+          this.newImages.forEach(image => {
+            formData.append("images", image);
+          });
+        }
 
-        formData.append("removedFiles", JSON.stringify(this.removedFiles));
-        formData.append("removedImages", JSON.stringify(this.removedImages));
+        // ส่งข้อมูลไฟล์ที่ถูกลบ
+        if (activity.deletedFile) {
+          formData.append("removedFiles", activity.deletedFile);
+        }
+
+        // ส่งข้อมูลรูปภาพที่ถูกลบ
+        if (activity.deletedImage) {
+          formData.append("removedImages", activity.deletedImage);
+        }
 
         const response = await axios.put(
           `http://localhost:8088/api/activities/${activity.id}`,
           formData,
           {
             headers: {
-              "Content-Type": "multipart/form-data",
-            },
+              "Content-Type": "multipart/form-data"
+            }
           }
         );
 
-        if (response.status === 200) {
-          this.toast.success("บันทึกการแก้ไขสำเร็จ", {
-            timeout: 3000
-          });
+        if (response.data.success) {
+          this.toast.success("บันทึกการแก้ไขสำเร็จ");
+          this.editingId = null;
+          this.editedDetails = "";
+          this.newFiles = [];
+          this.newImages = [];
           await this.fetchActivities();
-          this.cancelEdit();
+        } else {
+          this.toast.error(response.data.message || "ไม่สามารถบันทึกการแก้ไขได้");
         }
       } catch (error) {
         console.error("Error saving edit:", error);
-        this.toast.error("ไม่สามารถบันทึกการแก้ไขได้", {
-          timeout: 3000
-        });
+        this.toast.error(
+          error.response?.data?.message || "เกิดข้อผิดพลาดในการบันทึกการแก้ไข"
+        );
       }
     },
     handleFileChange(event) {
       const files = Array.from(event.target.files);
       this.newFiles = files;
-      this.toast.info(`เลือกไฟล์ ${files.length} ไฟล์`, {
-        timeout: 2000
-      });
+      this.toast.info(`เลือกไฟล์ ${files.length} ไฟล์`);
     },
     handleImageChange(event) {
       const files = Array.from(event.target.files);
-      const validImages = files.filter((file) =>
-        file.type.startsWith("image/")
-      );
+      const validImages = files.filter(file => file.type.startsWith("image/"));
       if (validImages.length !== files.length) {
-        this.toast.error("กรุณาเลือกไฟล์รูปภาพเท่านั้น", {
-          timeout: 3000
-        });
+        this.toast.error("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
         return;
       }
       this.newImages = validImages;
-      this.toast.info(`เลือกรูปภาพ ${validImages.length} รูป`, {
-        timeout: 2000
-      });
+      this.toast.info(`เลือกรูปภาพ ${validImages.length} รูป`);
     },
-    removeFile(index) {
-      const files = this.activity.file_paths.split(",");
-      this.removedFiles.push(files[index]);
-      files.splice(index, 1);
-      this.activity.file_paths = files.join(",");
+    deleteFile(activity, fileIndex) {
+      if (!confirm('คุณต้องการลบไฟล์นี้ใช่หรือไม่?')) {
+        return;
+      }
+
+      const filePaths = activity.file_paths.split(',');
+      activity.deletedFile = filePaths[fileIndex];
+      filePaths.splice(fileIndex, 1);
+      activity.file_paths = filePaths.join(',');
+      this.toast.info("ลบไฟล์เรียบร้อย");
     },
-    removeImage(index) {
-      const images = this.activity.image_paths.split(",");
-      this.removedImages.push(images[index]);
-      images.splice(index, 1);
-      this.activity.image_paths = images.join(",");
+    deleteImage(activity, imageIndex) {
+      if (!confirm('คุณต้องการลบรูปภาพนี้ใช่หรือไม่?')) {
+        return;
+      }
+
+      const imagePaths = activity.image_paths.split(',');
+      activity.deletedImage = imagePaths[imageIndex];
+      imagePaths.splice(imageIndex, 1);
+      
+      // อัพเดต UI ทันที (Vue 3 style)
+      activity.image_paths = imagePaths.join(',');
+      this.toast.info("ลบรูปภาพเรียบร้อย กรุณากดบันทึกเพื่อยืนยันการเปลี่ยนแปลง");
     },
     removeNewFile(index) {
       this.newFiles.splice(index, 1);
-      this.toast.info("ลบไฟล์ที่เลือกแล้ว", {
-        timeout: 2000
-      });
+      this.toast.info("ลบไฟล์ที่เลือกแล้ว");
     },
     removeNewImage(index) {
       this.newImages.splice(index, 1);
-      this.toast.info("ลบรูปภาพที่เลือกแล้ว", {
-        timeout: 2000
-      });
+      this.toast.info("ลบรูปภาพที่เลือกแล้ว");
     },
     getImagePreview(file) {
       return URL.createObjectURL(file);
@@ -769,46 +851,53 @@ tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: flex-start;
 }
 
 .file-link {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 8px;
-  padding: 6px 12px;
-  background: #f1f5f9;
-  border-radius: 6px;
-  color: #3498db;
+  color: #2c3e50;
   text-decoration: none;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
-  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
 }
 
 .file-link:hover {
-  background: #e2e8f0;
+  background-color: #f5f5f5;
+  color: #42b983;
+}
+
+.file-name {
+  word-break: break-word;
 }
 
 .image-thumbnails {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  gap: 8px;
+}
+
+.thumbnail-container {
+  position: relative;
+  width: 100px;
+  height: 100px;
 }
 
 .thumbnail {
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  border: 1px solid #ddd;
+  transition: transform 0.2s;
 }
 
 .thumbnail:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .thumbnail img {
@@ -817,20 +906,36 @@ tr:hover td {
   object-fit: cover;
 }
 
-.no-files,
-.no-images {
-  color: #94a3b8;
+.thumbnail-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.thumbnail-remove-btn:hover {
+  background: #ef4444;
+  transform: scale(1.1);
+}
+
+.no-files, .no-images {
+  color: #999;
   font-style: italic;
 }
 
-@media (max-width: 1024px) {
-  .table-container {
-    margin: 0 -24px;
-  }
-
-  table {
-    min-width: 1000px;
-  }
+i.fas.fa-file-alt {
+  color: #42b983;
 }
 
 .header-info {
@@ -898,129 +1003,51 @@ tr:hover td {
 
 .edit-textarea {
   width: 100%;
-  min-height: 80px;
+  min-height: 100px;
   padding: 12px;
+  margin-bottom: 16px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  font-size: 0.95rem;
   resize: vertical;
-  transition: border-color 0.2s ease;
-  margin-bottom: 8px;
 }
 
-.edit-textarea:focus {
-  border-color: #3498db;
-  outline: none;
+.edit-files-section,
+.edit-images-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
-.edit-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.btn-save,
-.btn-cancel {
-  padding: 6px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  display: flex;
+.file-label {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #e1f0fa;
+  color: #3498db;
+  border-radius: 6px;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.btn-save {
-  background: #e1f0fa;
-  color: #3498db;
-}
-
-.btn-save:hover {
+.file-label:hover {
   background: #3498db;
   color: white;
 }
 
-.btn-cancel {
-  background: #fee2e2;
-  color: #ef4444;
+.file-input {
+  display: none;
 }
 
-.btn-cancel:hover {
-  background: #ef4444;
-  color: white;
-}
-
-.details-text {
-  padding: 8px;
-  border-radius: 4px;
-}
-
-.edit-form {
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  overflow: hidden;
-}
-
-.edit-header {
-  background: #f1f5f9;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.edit-header i {
-  color: #3498db;
-}
-
-.edit-content {
-  padding: 16px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: #475569;
-  font-weight: 500;
-}
-
-.form-group label i {
-  color: #3498db;
-}
-
-.edit-textarea {
-  width: 100%;
-  min-height: 120px;
-  padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  resize: vertical;
-}
-
-.upload-section {
-  margin-top: 8px;
-}
-
-.files-preview,
-.images-preview {
+.new-files,
+.current-files,
+.new-images,
+.current-images {
   margin-top: 12px;
-  background: #f8fafc;
-  border-radius: 6px;
-  padding: 12px;
-  max-height: 250px;
-  overflow-y: auto;
+  display: grid;
+  gap: 8px;
 }
 
 .file-item {
@@ -1031,107 +1058,104 @@ tr:hover td {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  margin-bottom: 8px;
 }
 
-.file-item:last-child {
-  margin-bottom: 0;
+.file-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2c3e50;
+  text-decoration: none;
+}
+
+.file-link i {
+  color: #3498db;
 }
 
 .image-item {
-  width: 100%;
+  position: relative;
+  width: 120px;
   height: 120px;
-  margin-bottom: 8px;
-}
-
-.image-item:last-child {
-  margin-bottom: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
 
 .image-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 6px;
 }
 
-.edit-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  margin-bottom: 16px;
-}
-
-.edit-section {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.files-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.form-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: #475569;
-  font-weight: 500;
-}
-
-.form-group label i {
-  color: #3498db;
-}
-
-.edit-textarea {
-  width: 100%;
-  min-height: 120px;
-  padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  resize: vertical;
-  transition: border-color 0.2s ease;
-}
-
-.edit-textarea:focus {
-  border-color: #3498db;
-  outline: none;
-}
-
-.upload-label {
-  width: 100%;
-  padding: 12px;
-  background: #f8fafc;
-  border: 2px dashed #e2e8f0;
-  border-radius: 6px;
+.remove-btn {
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.upload-label:hover {
-  border-color: #3498db;
-  background: #e1f0fa;
+.remove-btn:hover {
+  background: #ef4444;
+  color: white;
 }
 
-.files-preview,
-.images-preview {
-  margin-top: 12px;
-  background: #f8fafc;
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+.btn-save,
+.btn-cancel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
   border-radius: 6px;
-  padding: 12px;
-  max-height: 250px;
-  overflow-y: auto;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-save {
+  background: #3498db;
+  color: white;
+}
+
+.btn-save:hover {
+  background: #2980b9;
+}
+
+.btn-cancel {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.btn-cancel:hover {
+  background: #cbd5e1;
+}
+
+.new-files,
+.current-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.new-images,
+.current-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
 }
 
 @media (max-width: 768px) {
