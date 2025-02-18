@@ -33,7 +33,7 @@
               placeholder="Enter system name in English"
             >
           </div>
-          <div class="form-group">
+          <!-- <div class="form-group">
             <label>
               <i class="fas fa-sitemap"></i>
               กอง
@@ -43,18 +43,19 @@
               required
               placeholder="กรอกชื่อกอง"
             >
-          </div>
+          </div> -->
           <div class="form-group">
             <label>
               <i class="fas fa-building"></i>
               แผนก
             </label>
             <input 
-              v-model="formData.department" 
+              v-model="formData.dept_full" 
               required
               placeholder="กรอกชื่อแผนก"
             >
           </div>
+          
           <div class="modal-actions">
             <button type="button" class="cancel-btn" @click="closeModal">
               <i class="fas fa-times"></i> ยกเลิก
@@ -153,13 +154,9 @@
                   </td>
                   <td>
                     <div class="department-info">
-                      <div class="div">
-                        <i class="fas fa-sitemap pulse-slow"></i>
-                        {{ system.division }}
-                      </div>
                       <div class="dept">
                         <i class="fas fa-building pulse-slow"></i>
-                        {{ system.department }}
+                        {{ system.dept_full || 'ไม่ระบุแผนก' }}
                       </div>
                     </div>
                   </td>
@@ -227,15 +224,15 @@ export default {
       newSystem: {
         name_th: '',
         name_en: '',
-        department: '',
-        division: ''
+        dept_full: '',
+        dept_change_code: ''
       },
       showEditModal: false,
       formData: {
         name_th: '',
         name_en: '',
-        department: '',
-        division: ''
+        dept_full: '',
+        dept_change_code: ''
       }
     };
   },
@@ -246,7 +243,8 @@ export default {
       const search = this.searchTerm.toLowerCase();
       return this.systems.filter(system => 
         system.name_th.toLowerCase().includes(search) ||
-        system.name_en.toLowerCase().includes(search)
+        system.name_en.toLowerCase().includes(search) ||
+        (system.dept_full && system.dept_full.toLowerCase().includes(search))
       );
     },
     totalImportantInfo() {
@@ -288,10 +286,47 @@ export default {
         this.toast.error('ไม่สามารถโหลดข้อมูลระบบได้ กรุณาลองใหม่อีกครั้ง');
       }
     },
-    editSystem(system) {
-      this.selectedSystem = system;
-      this.formData = { ...system };
-      this.showEditModal = true;
+    async editSystem(system) {
+      if (this.showEditModal) {
+        try {
+          const formattedData = {
+            nameTH: this.formData.name_th,
+            nameEN: this.formData.name_en,
+            dept_full: this.formData.dept_full,
+            dept_change_code: this.formData.dept_change_code
+          };
+
+          const response = await axios.put(
+            `http://localhost:8088/api/system-record/${this.selectedSystem.id}`,
+            formattedData
+          );
+
+          if (response.data.status === 'success') {
+            // อัพเดตข้อมูลในตาราง
+            const index = this.systems.findIndex(s => s.id === this.selectedSystem.id);
+            if (index !== -1) {
+              this.systems[index] = { 
+                ...this.systems[index], 
+                name_th: this.formData.name_th,
+                name_en: this.formData.name_en,
+                dept_full: this.formData.dept_full,
+                dept_change_code: this.formData.dept_change_code
+              };
+            }
+            this.toast.success('บันทึกการแก้ไขสำเร็จ');
+            this.closeModal();
+          } else {
+            throw new Error(response.data.message || 'ไม่สามารถบันทึกการแก้ไขได้');
+          }
+        } catch (error) {
+          console.error('Error updating system:', error);
+          this.toast.error(error.response?.data?.message || 'ไม่สามารถบันทึกการแก้ไขได้');
+        }
+      } else {
+        this.selectedSystem = system;
+        this.formData = { ...system };
+        this.showEditModal = true;
+      }
     },
     confirmDeletePrompt(system) {
       this.selectedSystem = system;
@@ -299,28 +334,31 @@ export default {
     },
     async confirmDelete() {
       try {
-        if (!this.selectedSystem) return;
+        if (!this.selectedSystem) {
+          this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
+          return;
+        }
         
         const response = await axios.delete(
           `http://localhost:8088/api/system-record/${this.selectedSystem.id}`
         );
 
         if (response.data.success) {
+          // อัพเดตข้อมูลในตารางโดยลบระบบที่เลือกออก
           this.systems = this.systems.filter(
             system => system.id !== this.selectedSystem.id
           );
           this.toast.success('ลบระบบสำเร็จ');
           this.closeModal();
         } else {
-          throw new Error(response.data.error || 'ไม่สามารถลบระบบได้');
+          throw new Error(response.data.message || 'ไม่สามารถลบระบบได้');
         }
       } catch (error) {
         console.error('Error deleting system:', error);
-        this.toast.error(error.response?.data?.error || 'ไม่สามารถลบระบบได้');
-      } finally {
-        this.showDeleteModal = false;
-        this.selectedSystem = null;
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบระบบได้');
       }
+      this.showDeleteModal = false;
+      this.selectedSystem = null;
     },
     async addSystem() {
       try {
@@ -330,8 +368,8 @@ export default {
         this.newSystem = {
           name_th: '',
           name_en: '',
-          department: '',
-          division: ''
+          dept_full: '',
+          dept_change_code: ''
         };
         this.toast.success('เพิ่มระบบสำเร็จ');
       } catch (error) {
@@ -347,7 +385,7 @@ export default {
     handleSubmit() {
       if (this.showAddModal) {
         this.addSystem();
-      } else {
+      } else if (this.showEditModal) {
         this.editSystem(this.selectedSystem);
       }
     },

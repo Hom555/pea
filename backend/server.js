@@ -453,27 +453,91 @@ app.post('/api/system-record', getUserData, async (req, res) => {
 // ใช้ใน: datasystemrecord.vue
 app.put('/api/system-record/:id', async (req, res) => {
   const id = req.params.id;
-  const { nameTH, nameEN } = req.body;
+  const { nameTH, nameEN, dept_full, dept_change_code } = req.body;
+  let conn;
 
   try {
+    conn = await pool.getConnection();
     const query = `
       UPDATE system_master 
       SET name_th = ?, 
           name_en = ?, 
+          dept_full = ?,
+          dept_change_code = ?,
           updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
     `;
 
-    const [result] = await pool.query(query, [nameTH, nameEN, id]);
+    const [result] = await conn.query(query, [nameTH, nameEN, dept_full, dept_change_code, id]);
     
     if (result.affectedRows === 0) {
-      return res.status(404).send({ message: 'ไม่พบข้อมูลที่ต้องการอัปเดต' });
+      return res.status(404).json({ 
+        status: 'error',
+        message: 'ไม่พบข้อมูลที่ต้องการอัปเดต' 
+      });
     }
-    res.status(200).send({ message: 'อัปเดตข้อมูลสำเร็จ' });
+
+    res.json({ 
+      status: 'success',
+      message: 'อัปเดตข้อมูลสำเร็จ' 
+    });
 
   } catch (error) {
     console.error('Error updating record:', error);
-    res.status(500).send({ message: 'ไม่สามารถอัปเดตข้อมูลได้' });
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถอัปเดตข้อมูลได้' 
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// ใช้ใน: SuperAdmin.vue - สำหรับลบระบบ
+app.delete('/api/system-record/:id', getUserData, async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    
+    conn = await pool.getConnection();
+
+    // ตรวจสอบสิทธิ์ผู้ใช้
+    const [userRole] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [req.user.emp_id]
+    );
+
+    // ถ้าไม่ใช่ Admin หรือ SuperAdmin ไม่อนุญาตให้ลบ
+    if (!userRole.length || (userRole[0].role_id !== 2 && userRole[0].role_id !== 3)) {
+      return res.status(403).json({
+        success: false,
+        message: 'ไม่มีสิทธิ์ลบข้อมูลระบบ'
+      });
+    }
+
+    // ลบข้อมูลจากตาราง system_master
+    const [result] = await conn.query('DELETE FROM system_master WHERE id = ?', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบข้อมูลที่ต้องการลบ'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'ลบข้อมูลระบบสำเร็จ'
+    });
+
+  } catch (error) {
+    console.error('Error deleting system:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถลบข้อมูลระบบได้'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
