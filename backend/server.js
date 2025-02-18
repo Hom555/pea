@@ -357,12 +357,11 @@ app.get('/api/system-records', getUserData, async (req, res) => {
   try {
     conn = await pool.getConnection();
     
-    // ใช้ข้อมูลแผนกจาก middleware
+    // ตรวจสอบ role ของผู้ใช้
+    const userRole = req.user.role_id;
     const userDept = req.user.dept_change_code;
-    console.log('Fetching systems for dept:', userDept);
-
-    // ดึงข้อมูลเฉพาะแผนกของผู้ใช้
-    const [systems] = await conn.query(`
+    
+    let query = `
       SELECT 
         id,
         name_th,
@@ -373,12 +372,21 @@ app.get('/api/system-records', getUserData, async (req, res) => {
         updated_at,
         is_active
       FROM system_master
-      WHERE dept_change_code = ?
-        AND is_active = 1
-      ORDER BY created_at DESC
-    `, [userDept]);
+    `;
 
-    console.log('Found systems:', systems.length);
+    // ถ้าเป็น Super Admin (role_id = 3) ให้เห็นทุกระบบ
+    // ถ้าเป็น User หรือ Admin ปกติให้เห็นเฉพาะแผนกตัวเอง
+    if (userRole !== 3) {
+      query += ` WHERE dept_change_code = ?`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const [systems] = userRole === 3 
+      ? await conn.query(query)
+      : await conn.query(query, [userDept]);
+
+    console.log('Found systems:', systems.length, 'for role:', userRole);
     res.json(systems);
 
   } catch (error) {
@@ -869,9 +877,10 @@ app.post('/api/activities', getUserData, async (req, res) => {
     console.log('Received files:', req.files);
     console.log('User data:', req.user);
 
-  const { systemId, importantInfo, details } = req.body;
+    const { systemId, importantInfo, details } = req.body;
     const userDept = req.user.dept_change_code;
     const userDeptFull = req.user.dept_full;
+    const userId = req.user.emp_id;
 
     // Validate required fields
     if (!systemId || !details) {
@@ -897,84 +906,24 @@ app.post('/api/activities', getUserData, async (req, res) => {
       });
     }
 
-    if (system[0].dept_change_code !== userDept) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'ไม่มีสิทธิ์เพิ่มข้อมูลให้ระบบของแผนกอื่น'
-      });
-    }
-
-    // Process uploaded files
-    let filePaths = [];
-    let imagePaths = [];
-
-    if (req.files) {
-      // สร้างโฟลเดอร์ถ้ายังไม่มี
-      const uploadDir = path.join(__dirname, 'uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      if (req.files.files) {
-        const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
-        for (const file of files) {
-          // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
-          const timestamp = Date.now();
-          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
-          const filename = `${timestamp}-${originalName}`;
-          const uploadPath = path.join(uploadDir, filename);
-          await file.mv(uploadPath);
-          filePaths.push('/uploads/' + filename);
-        }
-      }
-
-      if (req.files.images) {
-        const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-        for (const file of images) {
-          // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
-          const timestamp = Date.now();
-          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
-          const filename = `${timestamp}-${originalName}`;
-          const uploadPath = path.join(uploadDir, filename);
-          await file.mv(uploadPath);
-          imagePaths.push('/uploads/' + filename);
-        }
-      }
-    }
-
-    // Insert activity with department info and get the inserted ID
-    const [result] = await conn.execute(
-      `INSERT INTO activities 
-       (system_id, important_info, details, file_paths, image_paths, dept_change_code, dept_full, created_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-      systemId,
-        importantInfo || null,
-      details,
-        filePaths.join(',') || null,
-        imagePaths.join(',') || null,
-        userDept,
-        userDeptFull,
-        req.user.emp_id || null
-      ]
+    // บันทึกข้อมูลกิจกรรม
+    const [result] = await conn.query(
+      `INSERT INTO activities (
+        system_id, 
+        important_info, 
+        details, 
+        dept_change_code,
+        dept_full,
+        created_by,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [systemId, importantInfo, details, userDept, userDeptFull, userId]
     );
 
-    // ดึงข้อมูลที่เพิ่งบันทึก
-    const [newActivity] = await conn.query(
-      `SELECT * FROM activities WHERE id = LAST_INSERT_ID()`,
-      []
-    );
-
-    console.log('Inserted activity ID:', result.insertId);
-    console.log('New activity data:', newActivity[0]);
-
-    res.status(200).json({ 
+    res.json({
       status: 'success',
       message: 'บันทึกกิจกรรมสำเร็จ',
-      activity: {
-        ...newActivity[0],
-        id: result.insertId
-      }
+      id: result.insertId
     });
 
   } catch (error) {
@@ -1137,49 +1086,26 @@ app.get('/api/activities/:systemId/:importantInfoId', getUserData, async (req, r
 
   try {
     conn = await pool.getConnection();
-    const userDept = req.user.dept_change_code;
 
     console.log('Fetching activities with params:', {
       systemId,
-      importantInfoId,
-      userDept
+      importantInfoId
     });
 
-    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
-    const [system] = await conn.query(
-      'SELECT dept_change_code FROM system_master WHERE id = ?',
-      [systemId]
-    );
-
-    if (system.length === 0) {
-      console.log('System not found');
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบข้อมูลระบบ'
-      });
-    }
-
-    if (system[0].dept_change_code !== userDept) {
-      console.log('Department mismatch:', {
-        systemDept: system[0].dept_change_code,
-        userDept
-      });
-      return res.status(403).json({
-        status: 'error',
-        message: 'ไม่มีสิทธิ์ดูข้อมูลของระบบแผนกอื่น'
-      });
-    }
-    
-    // ดึงข้อมูลกิจกรรมที่ตรงกับ systemId และ importantInfoId
+    // ดึงข้อมูลกิจกรรมที่ตรงกับ systemId และ importantInfoId โดยไม่จำกัดแผนก
     const [activities] = await conn.query(
-      `SELECT a.*, u.first_name, u.last_name
+      `SELECT 
+        a.*,
+        COALESCE(u.first_name, '') as first_name,
+        COALESCE(u.last_name, '') as last_name,
+        COALESCE(u.title_s_desc, '') as title_s_desc,
+        COALESCE(u.dept_full, '') as creator_dept_full
        FROM activities a
        LEFT JOIN users u ON a.created_by = u.emp_id
        WHERE a.system_id = ? 
        AND a.important_info = ?
-       AND a.dept_change_code = ?
        ORDER BY a.created_at DESC`,
-      [systemId, importantInfoId, userDept]
+      [systemId, importantInfoId]
     );
 
     console.log('Found activities:', activities.length);
@@ -1197,46 +1123,27 @@ app.get('/api/activities/:systemId/:importantInfoId', getUserData, async (req, r
 });
 
 // ใช้ใน: Dataactivities.vue
-app.get('/api/activities', withConnection, async (req, res) => {
+app.get('/api/activities', async (req, res) => {
+  let conn;
   try {
-    const [activities] = await req.db.query(`
-      SELECT 
+    conn = await pool.getConnection();
+    
+    const [activities] = await conn.query(
+      `SELECT 
         a.*,
+        u.title_s_desc,
         u.first_name,
-        u.last_name
+        u.last_name,
+        u.dept_full as user_dept_full,
+        s.name_th as system_name
       FROM activities a
       LEFT JOIN users u ON a.created_by = u.emp_id
-      ORDER BY a.created_at DESC
-    `);
+      LEFT JOIN system_master s ON a.system_id = s.id
+      ORDER BY a.created_at DESC`
+    );
 
-    const formattedActivities = await Promise.all(activities.map(async activity => {
-      let deptInfo = '';
-      try {
-        if (activity.created_by) {
-          const userInfo = await ad.getUserInfo(activity.created_by);
-          deptInfo = userInfo?.dept_full || '';
-        }
-      } catch (err) {
-        console.error(`Error getting dept info for user ${activity.created_by}:`, err);
-      }
-
-      return {
-        id: activity.id,
-        system_id: activity.system_id,
-        important_info: activity.important_info,
-        details: activity.details || '',
-        file_paths: activity.file_paths || '',
-        image_paths: activity.image_paths || '',
-        created_at: activity.created_at,
-        updated_at: activity.updated_at,
-        created_by: activity.created_by || '',
-        first_name: activity.first_name || '',
-        last_name: activity.last_name || '',
-        dept_full: deptInfo
-      };
-    }));
-
-    res.json(formattedActivities);
+    console.log('Found activities:', activities.length);
+    res.json(activities);
 
   } catch (error) {
     console.error('Error fetching activities:', error);
@@ -1245,7 +1152,7 @@ app.get('/api/activities', withConnection, async (req, res) => {
       message: 'ไม่สามารถดึงข้อมูลกิจกรรมได้'
     });
   } finally {
-    if (req.db) req.db.release();
+    if (conn) conn.release();
   }
 });
 
@@ -1304,7 +1211,7 @@ app.post('/api/save-admin-role', async (req, res) => {
           `INSERT INTO users (
             emp_id, role_id, title_s_desc, first_name, last_name, 
             dept_change_code, dept_full, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
           [emp_id, role_id, title_s_desc || '', first_name, last_name, dept_change_code, dept_full]
         );
       }
@@ -1623,6 +1530,77 @@ app.get('/api/user-role/:emp_id', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลสิทธิ์ผู้ใช้ได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// เพิ่ม endpoint สำหรับลบกิจกรรม
+app.delete('/api/activities/:id', getUserData, async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    const userDept = req.user.dept_change_code;
+
+    conn = await pool.getConnection();
+
+    // ตรวจสอบว่ากิจกรรมนี้มีอยู่จริงและเป็นของแผนกผู้ใช้หรือไม่
+    const [activity] = await conn.query(
+      'SELECT dept_change_code, file_paths, image_paths FROM activities WHERE id = ?',
+      [id]
+    );
+
+    if (activity.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลกิจกรรม'
+      });
+    }
+
+    // ตรวจสอบสิทธิ์การลบ (ต้องเป็นของแผนกเดียวกัน)
+    if (activity[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+      });
+    }
+
+    // ลบไฟล์ที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].file_paths) {
+      const filePaths = activity[0].file_paths.split(',');
+      filePaths.forEach(filePath => {
+        const fullPath = path.join(__dirname, filePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบรูปภาพที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].image_paths) {
+      const imagePaths = activity[0].image_paths.split(',');
+      imagePaths.forEach(imagePath => {
+        const fullPath = path.join(__dirname, imagePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบข้อมูลจากฐานข้อมูล
+    await conn.query('DELETE FROM activities WHERE id = ?', [id]);
+
+    res.json({
+      status: 'success',
+      message: 'ลบกิจกรรมสำเร็จ'
+    });
+
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถลบกิจกรรมได้'
     });
   } finally {
     if (conn) conn.release();

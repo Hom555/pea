@@ -14,27 +14,31 @@
 
       <!-- Filter Section -->
       <div class="filter-section">
-        <div class="filter-row">
-          <div class="search-box">
-            <i class="fas fa-search"></i>
-            <input 
-              type="text" 
-              v-model="searchTerm"
-              placeholder="ค้นหากิจกรรม..."
-            >
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input 
+            type="text" 
+            v-model="searchTerm" 
+            placeholder="ค้นหาผู้ใช้งาน..."
+          >
+        </div>
+        <div class="filter-group">
+          <div class="select-wrapper">
+            <i class="fas fa-building"></i>
+            <select v-model="selectedDepartment">
+              <option value="">ทุกแผนก</option>
+              <option v-for="dept in departments" :key="dept">{{ dept }}</option>
+            </select>
           </div>
-          <select v-model="selectedDepartment" class="filter-select">
-            <option value="">เลือกแผนก</option>
-            <option v-for="dept in departments" :key="dept.id" :value="dept.id">
-              {{ dept.name }}
-            </option>
-          </select>
-          <select v-model="selectedSystem" class="filter-select" @change="handleSystemChange">
-            <option value="">เลือกระบบ</option>
-            <option v-for="system in systems" :key="system.id" :value="system.id">
-              {{ system.name_th }}
-            </option>
-          </select>
+          <div class="select-wrapper">
+            <i class="fas fa-server"></i>
+            <select v-model="selectedSystem">
+              <option value="">ทุกระบบ</option>
+              <option v-for="system in systems" :key="system.id" :value="system.id">
+                {{ system.name_th }}
+              </option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -50,109 +54,89 @@
         {{ error }}
       </div>
 
-      <div v-else>
-        <div class="table-container">
-          <table v-if="activities.length > 0">
-            <thead>
-              <tr>
-                <th>ข้อมูลสำคัญ</th>
-                <th>รายละเอียด</th>
-                <th>ไฟล์/รูปภาพ</th>
-                <th>ผู้บันทึก/แก้ไข</th>
-                <th>วันที่</th>
-                <th>การจัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="activity in filteredActivities" :key="activity.id">
-                <!-- ข้อมูลสำคัญ -->
-                <td>
-                  <div class="importance-info">
-                    <span :class="getImportanceClass(activity.important_info)">
-                      {{ activity.important_info }}
-                    </span>
+      <div v-else class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>วันที่</th>
+              <th>ข้อมูลสำคัญ</th>
+              <th>รายละเอียด</th>
+              <th>แผนก</th>
+              <th>ผู้บันทึก</th>
+              <th>ไฟล์/รูปภาพ</th>
+              <th class="text-center">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody v-if="filteredActivities.length > 0">
+            <tr v-for="activity in filteredActivities" :key="activity.id">
+              <td>{{ formatDate(activity.created_at) }}</td>
+              <td>
+                <div class="importance-info">
+                  <span :class="getImportanceClass(activity.important_info)">
+                    {{ activity.important_info }}
+                  </span>
+                </div>
+              </td>
+              <td class="details-cell">
+                <div class="details-content">
+                  {{ activity.details }}
+                </div>
+              </td>
+              <td>
+                <span class="department-badge">{{ activity.dept_full }}</span>
+              </td>
+              <td>
+                <div class="user-info">
+                  <div class="created-by">
+                    <i class="fas fa-user-edit"></i>
+                    <span>{{ activity.creator_name || 'ไม่ระบุผู้บันทึก' }}</span>
                   </div>
-                </td>
-
-                <!-- รายละเอียด -->
-                <td class="details-cell">
-                  <div class="details-content">
-                    {{ activity.details }}
+                </div>
+              </td>
+              <td>
+                <div class="attachments">
+                  <div v-if="activity.file_paths" class="files">
+                    <a v-for="file in getFiles(activity.file_paths)" 
+                       :key="file.path"
+                       :href="file.path"
+                       target="_blank"
+                       class="file-link">
+                      <i :class="getFileIcon(file.path)"></i>
+                    </a>
                   </div>
-                </td>
-
-                <!-- ไฟล์และรูปภาพ -->
-                <td>
-                  <div class="attachments">
-                    <!-- ไฟล์ -->
-                    <div v-if="activity.file_paths" class="files">
-                      <a v-for="file in getFiles(activity.file_paths)" 
-                         :key="file.path"
-                         :href="file.path"
-                         target="_blank"
-                         class="file-link">
-                        <i :class="getFileIcon(file.path)"></i>
-                      </a>
-                    </div>
-                    <!-- รูปภาพ -->
-                    <div v-if="activity.image_paths" class="images">
-                      <div v-for="image in getFiles(activity.image_paths)"
-                           :key="image.path"
-                           class="image-thumbnail"
-                           @click="showFullImage(image.path)">
-                        <img :src="image.path" :alt="image.name">
-                      </div>
-                    </div>
-                  </div>
-                </td>
-
-                <!-- ผู้บันทึก/แก้ไข -->
-                <td>
-                  <div class="user-info">
-                    <div class="created-by">
-                      <i class="fas fa-user-edit"></i>
-                      <span>{{ activity.first_name }} {{ activity.last_name }}</span>
-                    </div>
-                    <div v-if="activity.updated_by" class="updated-by">
-                      <i class="fas fa-history"></i>
-                      <span>แก้ไขโดย: {{ activity.updated_by }}</span>
+                  <div v-if="activity.image_paths" class="images">
+                    <div v-for="image in getFiles(activity.image_paths)"
+                         :key="image.path"
+                         class="image-thumbnail"
+                         @click="showFullImage(image.path)">
+                      <img :src="image.path" :alt="image.name">
                     </div>
                   </div>
-                </td>
-
-                <!-- วันที่ -->
-                <td>
-                  <div class="date-info">
-                    <div class="created-date">
-                      <i class="far fa-calendar-plus"></i>
-                      <span>{{ formatDate(activity.created_at) }}</span>
-                    </div>
-                    <div v-if="activity.updated_at" class="updated-date">
-                      <i class="far fa-calendar-check"></i>
-                      <span>{{ formatDate(activity.updated_at) }}</span>
-                    </div>
-                  </div>
-                </td>
-
-                <!-- การจัดการ -->
-                <td>
-                  <div class="action-buttons">
-                    <button @click="editActivity(activity)" class="btn-edit">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button @click="deleteActivity(activity)" class="btn-delete">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div v-else class="no-data">
-            <i class="fas fa-inbox"></i>
-            <p>{{ searchTerm ? 'ไม่พบข้อมูลที่ค้นหา' : 'ไม่พบข้อมูลกิจกรรม' }}</p>
-          </div>
-        </div>
+                </div>
+              </td>
+              <td class="text-center">
+                <div class="action-buttons">
+                  <button @click="editActivity(activity)" class="btn-edit">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button @click="deleteActivity(activity)" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+          <tbody v-else>
+            <tr>
+              <td colspan="7" class="text-center py-4">
+                <div class="no-data">
+                  <i class="fas fa-inbox"></i>
+                  <p>{{ searchTerm || selectedDepartment || selectedSystem ? 'ไม่พบข้อมูลที่ค้นหา' : 'ไม่พบข้อมูลกิจกรรม' }}</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -317,13 +301,20 @@ export default {
           activity.details?.toLowerCase().includes(search) ||
           activity.important_info?.toLowerCase().includes(search) ||
           activity.first_name?.toLowerCase().includes(search) ||
-          activity.last_name?.toLowerCase().includes(search)
+          activity.last_name?.toLowerCase().includes(search) ||
+          activity.dept_full?.toLowerCase().includes(search)
         );
       }
 
       if (this.selectedSystem) {
         filtered = filtered.filter(activity => 
           activity.system_id === this.selectedSystem
+        );
+      }
+
+      if (this.selectedDepartment) {
+        filtered = filtered.filter(activity => 
+          activity.dept_full === this.selectedDepartment
         );
       }
 
@@ -342,8 +333,9 @@ export default {
   methods: {
     async fetchSystems() {
       try {
-        const response = await axios.get('http://localhost:8881/api/system-records');
+        const response = await axios.get('http://localhost:8088/api/system-records');
         this.systems = response.data;
+        console.log('Fetched systems:', this.systems);
       } catch (error) {
         console.error('Error fetching systems:', error);
         this.toast.error('ไม่สามารถดึงข้อมูลระบบได้');
@@ -357,18 +349,28 @@ export default {
     async fetchActivities() {
       this.loading = true;
       try {
-        let url = 'http://localhost:8881/api/activities';
-        const params = {};
+        const response = await axios.get('http://localhost:8088/api/activities');
         
-        if (this.selectedSystem) {
-          params.system_id = this.selectedSystem;
-        }
-        
-        const response = await axios.get(url, { params });
-        this.activities = response.data;
+        // แปลงข้อมูลและเพิ่มข้อมูลแผนก
+        this.activities = response.data.map(activity => ({
+          ...activity,
+          dept_name: activity.dept_full || 'ไม่ระบุแผนก',
+          creator_name: activity.first_name ? 
+            `${activity.title_s_desc || ''}${activity.first_name} ${activity.last_name}` :
+            'ไม่ระบุผู้บันทึก'
+        }));
+
+        // ดึงรายชื่อแผนกทั้งหมดจากข้อมูลกิจกรรม
+        this.departments = [...new Set(this.activities
+          .map(activity => activity.dept_full)
+          .filter(dept => dept)
+        )];
+
+        console.log('Fetched activities:', this.activities);
       } catch (error) {
         console.error('Error fetching activities:', error);
         this.error = 'ไม่สามารถดึงข้อมูลกิจกรรมได้';
+        this.toast.error('ไม่สามารถดึงข้อมูลกิจกรรมได้');
       } finally {
         this.loading = false;
       }
@@ -392,7 +394,7 @@ export default {
     getFiles(paths) {
       if (!paths) return [];
       return paths.split(',').map(path => ({
-        path: `http://localhost:8881${path}`,
+        path: `http://localhost:8088${path}`,
         name: path.split('/').pop()
       }));
     },
@@ -415,30 +417,40 @@ export default {
 
     async saveActivity() {
       try {
-        await axios.put(`http://localhost:8881/api/activities/${this.editingActivity.id}`, {
+        await axios.put(`http://localhost:8088/api/activities/${this.editingActivity.id}`, {
           important_info: this.editingActivity.important_info,
-          details: this.editingActivity.details
+          details: this.editingActivity.details,
+          updated_by: this.editingActivity.emp_id
         });
         
         this.toast.success('บันทึกการแก้ไขสำเร็จ');
         await this.fetchActivities();
         this.closeEditModal();
       } catch (error) {
-        console.error('Error:', error);
-        this.toast.error('ไม่สามารถบันทึกการแก้ไขได้');
+        console.error('Error saving activity:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถบันทึกการแก้ไขได้');
       }
     },
 
     async deleteActivity(activity) {
-      if (!confirm('ต้องการลบกิจกรรมนี้ใช่หรือไม่?')) return;
+      // แสดง dialog ยืนยันการลบ
+      if (!confirm(`ต้องการลบกิจกรรม "${activity.details}" ใช่หรือไม่?`)) {
+        return;
+      }
 
       try {
-        await axios.delete(`http://localhost:8881/api/activities/${activity.id}`);
-        this.toast.success('ลบกิจกรรมสำเร็จ');
-        await this.fetchActivities();
+        const response = await axios.delete(`http://localhost:8088/api/activities/${activity.id}`);
+        
+        if (response.data.status === 'success') {
+          // ลบข้อมูลออกจาก array
+          this.activities = this.activities.filter(a => a.id !== activity.id);
+          this.toast.success('ลบกิจกรรมสำเร็จ');
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถลบกิจกรรมได้');
+        }
       } catch (error) {
-        console.error('Error:', error);
-        this.toast.error('ไม่สามารถลบกิจกรรมได้');
+        console.error('Error deleting activity:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบกิจกรรมได้');
       }
     },
 
@@ -557,13 +569,6 @@ export default {
   animation: fadeIn 0.5s ease-out 0.2s both;
 }
 
-.filter-row {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-
-/* Search Box */
 .search-box {
   flex: 2;
   position: relative;
@@ -594,34 +599,37 @@ export default {
   outline: none;
 }
 
-/* Select Boxes */
-.filter-select {
+.filter-group {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.select-wrapper {
   flex: 1;
-  padding: 14px 16px;
+  position: relative;
+}
+
+.select-wrapper i {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 16px;
+}
+
+.select-wrapper select {
+  width: 100%;
+  padding: 14px 14px 14px 45px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   font-size: 0.95rem;
-  color: #1e293b;
-  background: white;
-  cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 200px;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-  background-size: 16px;
-  padding-right: 45px;
+  background: white;
 }
 
-.filter-select:hover {
-  border-color: #4f46e5;
-  background-color: #fafafa;
-}
-
-.filter-select:focus {
+.select-wrapper select:focus {
   border-color: #4f46e5;
   box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
   outline: none;
