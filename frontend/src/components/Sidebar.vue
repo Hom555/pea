@@ -97,9 +97,9 @@
             <span v-if="!isCollapsed">จัดการระบบ</span>
           </router-link>
 
-          <!-- แสดงเฉพาะ superadmin -->
+          <!-- แสดงเฉพาะ admin และ superadmin -->
           <router-link 
-            v-if="userData.role_id === 3" 
+            v-if="userData.role_id === 2 || userData.role_id === 3" 
             to="/user-management" 
             class="nav-item"
           >

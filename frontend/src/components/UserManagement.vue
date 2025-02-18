@@ -63,7 +63,7 @@
           </div>
           <div class="stat-info">
             <h3>Admin</h3>
-            <p>{{ getCountByRole('admin') }}</p>
+            <p>{{ adminCount }}</p>
           </div>
         </div>
         <div class="stat-card">
@@ -72,7 +72,7 @@
           </div>
           <div class="stat-info">
             <h3>Super Admin</h3>
-            <p>{{ getCountByRole('superadmin') }}</p>
+            <p>{{ superAdminCount }}</p>
           </div>
         </div>
       </div>
@@ -90,15 +90,15 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in users" :key="user.emp_id">
+            <tr v-for="user in filteredUsers" :key="user.emp_id">
               <td>{{ user.emp_id }}</td>
-              <td>{{ user.name }}</td>
+              <td>{{ user.first_name }} {{ user.last_name }}</td>
               <td>
-                <span class="department-badge">{{ user.department }}</span>
+                <span class="department-badge">{{ user.dept_full }}</span>
               </td>
               <td>
-                <span :class="['role-badge', user.role]">
-                  {{ getRoleDisplay(user.role) }}
+                <span :class="['role-badge', getRoleClass(user.role_id)]">
+                  {{ getRoleDisplay(user.role_id) }}
                 </span>
               </td>
               <td class="text-center">
@@ -202,9 +202,9 @@
         </div>
         <div class="modal-body">
           <p>คุณต้องการเปลี่ยนระดับผู้ใช้ของ</p>
-          <p class="user-name">{{ selectedUser?.name }}</p>
-          <p>จาก <span class="old-role">{{ selectedUser?.oldRole }}</span></p>
-          <p>เป็น <span class="new-role">{{ selectedUser?.role }}</span></p>
+          <p class="user-name">{{ selectedUser?.first_name }} {{ selectedUser?.last_name }}</p>
+          <p>จาก <span class="old-role">{{ getRoleDisplay(selectedUser?.role_id) }}</span></p>
+          <p>เป็น <span class="new-role">{{ getRoleDisplay(role_id) }}</span></p>
           
           <div class="form-actions">
             <button class="btn-cancel" @click="closeConfirmModal">
@@ -234,11 +234,11 @@
         </div>
         <div class="modal-body">
           <div class="user-info">
-            <div class="user-avatar">{{ getUserInitials(selectedUser?.name) }}</div>
+            <div class="user-avatar">{{ getUserInitials(selectedUser?.first_name + ' ' + selectedUser?.last_name) }}</div>
             <div class="user-details">
-              <h3>{{ selectedUser?.name }}</h3>
+              <h3>{{ selectedUser?.first_name }} {{ selectedUser?.last_name }}</h3>
               <p class="user-id">รหัสพนักงาน: {{ selectedUser?.emp_id }}</p>
-              <p class="user-dept">{{ selectedUser?.department }}</p>
+              <p class="user-dept">{{ selectedUser?.dept_full }}</p>
             </div>
           </div>
 
@@ -318,49 +318,40 @@ export default {
   },
   computed: {
     departments() {
-      return this.getDepartments();
+      return [...new Set(this.users.map(user => user.dept_full))];
     },
     filteredUsers() {
       return this.users.filter(user => {
         const matchesSearch = !this.searchTerm || 
-          user.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-          user.employeeId.includes(this.searchTerm);
+          `${user.first_name} ${user.last_name}`.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+          user.emp_id.toString().includes(this.searchTerm) ||
+          user.dept_full.toLowerCase().includes(this.searchTerm.toLowerCase());
+        
         const matchesDepartment = !this.departmentFilter || 
-          user.department === this.departmentFilter;
+          user.dept_full === this.departmentFilter;
+        
         const matchesRole = !this.roleFilter || 
-          user.role === this.roleFilter;
+          this.getRoleClass(user.role_id) === this.roleFilter;
         
         return matchesSearch && matchesDepartment && matchesRole;
       });
     },
     adminCount() {
-      return this.users.filter(user => user.role === 'admin').length;
+      return this.users.filter(user => user.role_id === 2).length;
     },
     userCount() {
-      return this.users.filter(user => user.role === 'user').length;
+      return this.users.filter(user => user.role_id === 1).length;
     },
     superAdminCount() {
-      return this.users.filter(user => user.role === 'superadmin').length;
+      return this.users.filter(user => user.role_id === 3).length;
     }
   },
   methods: {
     async fetchUsers() {
       try {
-        const response = await axios.get('http://localhost:3007/api/data');
-        const adminResponse = await axios.get('http://localhost:8881/api/admin-users');
-        const adminUsers = adminResponse.data || [];
-
-        if (response.data?.data?.dataDetail) {
-          this.users = response.data.data.dataDetail.map(user => {
-            const adminUser = adminUsers.find(admin => admin.emp_id === user.emp_id);
-            return {
-              emp_id: user.emp_id,
-              name: `${user.first_name} ${user.last_name}`,
-              department: user.dept_full,
-              role: adminUser ? adminUser.role : 'user'
-            };
-          });
-        }
+        const response = await axios.get('http://localhost:8088/api/admin-users');
+        this.users = response.data;
+        console.log('Fetched users:', this.users);
       } catch (error) {
         console.error('Error fetching users:', error);
         this.toast.error('ไม่สามารถโหลดข้อมูลผู้ใช้งานได้');
@@ -395,7 +386,11 @@ export default {
       };
     },
     getUserInitials(name) {
-      return name.split(' ').map(n => n[0]).join('');
+      if (!name) return '';
+      return name.split(' ')
+        .map(n => n ? n[0] : '')
+        .join('')
+        .toUpperCase();
     },
     getDepartments() {
       return [...new Set(this.users.map(user => user.department))];
@@ -471,13 +466,26 @@ export default {
       }
     },
     confirmRoleChange(user) {
-      if (user.role === user.oldRole) {
+      if (this.selectedRole === this.getRoleClass(user.role_id)) {
         return;
+      }
+      
+      // แปลง role เป็น role_id
+      let role_id;
+      switch (this.selectedRole) {
+        case 'admin':
+          role_id = 2;
+          break;
+        case 'superadmin':
+          role_id = 3;
+          break;
+        default:
+          role_id = 1;
       }
       
       this.selectedUser = {
         ...user,
-        oldRole: user.role
+        role_id: role_id
       };
       this.showConfirmModal = true;
     },
@@ -492,7 +500,7 @@ export default {
     },
     manageRole(user) {
       this.selectedUser = { ...user };
-      this.selectedRole = user.role;
+      this.selectedRole = this.getRoleClass(user.role_id);
       this.showRoleModal = true;
     },
     async saveRole() {
@@ -502,31 +510,50 @@ export default {
           return;
         }
 
-        // แยกชื่อและนามสกุล
-        const nameParts = this.selectedUser.name.split(' ');
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(' ');
+        // แปลง role เป็น role_id
+        let role_id;
+        switch (this.selectedRole) {
+          case 'admin':
+            role_id = 2;
+            break;
+          case 'superadmin':
+            role_id = 3;
+            break;
+          default:
+            role_id = 1;
+        }
 
         const userData = {
           emp_id: this.selectedUser.emp_id,
-          role: this.selectedRole,
-          first_name: firstName,
-          last_name: lastName,
-          dept_full: this.selectedUser.department
+          role_id: role_id,
+          title_s_desc: this.selectedUser.title_s_desc || '',
+          first_name: this.selectedUser.first_name,
+          last_name: this.selectedUser.last_name,
+          dept_change_code: this.selectedUser.dept_change_code,
+          dept_full: this.selectedUser.dept_full
         };
 
-        const response = await axios.post('http://localhost:8881/api/save-admin-role', userData);
+        let response;
+        if (role_id === 1) {
+          // ถ้าเป็น user ให้เรียก API เปลี่ยนสิทธิ์
+          response = await axios.delete(`http://localhost:8088/api/remove-admin-role/${this.selectedUser.emp_id}`);
+        } else {
+          // ถ้าเป็น admin หรือ superadmin ให้บันทึกลงตาราง users
+          response = await axios.post('http://localhost:8088/api/save-admin-role', userData);
+        }
 
         if (response.data.status === 'success') {
-          // อัพเดตข้อมูลในตาราง
+          // อัพเดตข้อมูลในตารางทันทีหลังจากบันทึกสำเร็จ
           const index = this.users.findIndex(u => u.emp_id === this.selectedUser.emp_id);
           if (index !== -1) {
-            this.users[index].role = this.selectedRole;
+            this.users[index] = {
+              ...this.users[index],
+              role_id: role_id
+            };
           }
-
           this.toast.success('บันทึกสิทธิ์ผู้ใช้งานสำเร็จ');
           this.closeRoleModal();
-          await this.fetchUsers(); // รีโหลดข้อมูล
+          await this.fetchUsers(); // รีโหลดข้อมูลทั้งหมดใหม่
         } else {
           throw new Error(response.data.message || 'ไม่สามารถบันทึกสิทธิ์ผู้ใช้งานได้');
         }
@@ -541,16 +568,43 @@ export default {
       this.selectedUser = null;
       this.selectedRole = null;
     },
-    getRoleDisplay(role) {
-      const roleMap = {
-        'user': 'User',
-        'admin': 'Admin',
-        'superadmin': 'Super Admin'
-      };
-      return roleMap[role] || role;
+    getRoleDisplay(roleId) {
+      switch (roleId) {
+        case 1: return 'User';
+        case 2: return 'Admin';
+        case 3: return 'Super Admin';
+        default: return 'User';
+      }
+    },
+    getRoleClass(roleId) {
+      switch (roleId) {
+        case 1: return 'user';
+        case 2: return 'admin';
+        case 3: return 'superadmin';
+        default: return 'user';
+      }
+    },
+    formatDate(date) {
+      if (!date) return '-';
+      return new Date(date).toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     },
     getCountByRole(roleType) {
-      return this.users.filter(user => user.role === roleType).length;
+      switch (roleType) {
+        case 'admin':
+          return this.users.filter(user => user.role_id === 2).length;
+        case 'superadmin':
+          return this.users.filter(user => user.role_id === 3).length;
+        case 'user':
+          return this.users.filter(user => user.role_id === 1).length;
+        default:
+          return 0;
+      }
     }
   },
   created() {

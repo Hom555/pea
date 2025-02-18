@@ -1252,111 +1252,211 @@ app.get('/api/activities', withConnection, async (req, res) => {
 // === Admin Management ===
 // ใช้ใน: SuperAdmin.vue, UserManagement.vue
 app.post('/api/save-admin-role', async (req, res) => {
+  let conn;
   try {
-    const { emp_id, role, first_name, last_name, dept_full } = req.body;
-
-    // ตรวจสอบข้อมูลที่จำเป็น
-    if (!emp_id || !role) {
+    const { emp_id, role_id, title_s_desc, first_name, last_name, dept_change_code, dept_full } = req.body;
+    
+    // ตรวจสอบข้อมูลที่จำเป็นทั้งหมด
+    if (!emp_id || !role_id || !first_name || !last_name || !dept_change_code || !dept_full) {
       return res.status(400).json({
         status: 'error',
-        message: 'กรุณาระบุรหัสพนักงานและระดับสิทธิ์'
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
-    // หา role_id จากชื่อ role
-    const connection = await pool.getConnection();
-    const [roles] = await connection.query('SELECT id FROM roles WHERE name = ?', [role]);
-    if (!roles.length) {
+    // ตรวจสอบว่า role_id ถูกต้อง
+    if (![1, 2, 3].includes(Number(role_id))) {
       return res.status(400).json({
         status: 'error',
-        message: 'ไม่พบระดับสิทธิ์ที่ระบุ'
+        message: 'ระดับสิทธิ์ไม่ถูกต้อง'
       });
     }
-    const role_id = roles[0].id;
-
-    // ตรวจสอบว่ามีในฐานข้อมูลแล้วหรือไม่
-    const [existing] = await connection.query(
-      'SELECT * FROM users WHERE emp_id = ?',
-      [emp_id]
-    );
-
-    if (existing.length > 0) {
-      // อัพเดตข้อมูล
-      await connection.execute(
-        `UPDATE users 
-         SET role_id = ?, first_name = ?, last_name = ?, dept_full = ?
-         WHERE emp_id = ?`,
-        [role_id, first_name, last_name, dept_full, emp_id]
+    
+    conn = await pool.getConnection();
+    
+    // เริ่ม transaction
+    await conn.beginTransaction();
+    
+    try {
+      // เช็คว่ามีข้อมูลผู้ใช้นี้อยู่แล้วหรือไม่
+      const [existing] = await conn.query(
+        'SELECT * FROM users WHERE emp_id = ?',
+        [emp_id]
       );
-    } else {
-      // เพิ่มข้อมูลใหม่
-      await connection.execute(
-        `INSERT INTO users (emp_id, role_id, first_name, last_name, dept_full)
-         VALUES (?, ?, ?, ?, ?)`,
-        [emp_id, role_id, first_name, last_name, dept_full]
+      
+      if (existing.length > 0) {
+        // ถ้ามีข้อมูลอยู่แล้ว ให้อัพเดต
+        await conn.query(
+          `UPDATE users SET 
+           role_id = ?,
+           title_s_desc = ?,
+           first_name = ?,
+           last_name = ?,
+           dept_change_code = ?,
+           dept_full = ?,
+           updated_at = CURRENT_TIMESTAMP
+           WHERE emp_id = ?`,
+          [role_id, title_s_desc || '', first_name, last_name, dept_change_code, dept_full, emp_id]
+        );
+      } else {
+        // ถ้ายังไม่มีข้อมูล ให้เพิ่มใหม่
+        await conn.query(
+          `INSERT INTO users (
+            emp_id, role_id, title_s_desc, first_name, last_name, 
+            dept_change_code, dept_full, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [emp_id, role_id, title_s_desc || '', first_name, last_name, dept_change_code, dept_full]
+        );
+      }
+
+      // ดึงข้อมูลที่บันทึกเพื่อยืนยัน
+      const [savedUser] = await conn.query(
+        'SELECT * FROM users WHERE emp_id = ?',
+        [emp_id]
       );
+
+      if (!savedUser.length) {
+        throw new Error('ไม่พบข้อมูลที่บันทึก');
+      }
+
+      // ยืนยัน transaction
+      await conn.commit();
+      
+      res.json({
+        status: 'success',
+        message: 'บันทึกสิทธิ์ผู้ใช้งานสำเร็จ',
+        user: savedUser[0]
+      });
+
+    } catch (error) {
+      // ถ้าเกิดข้อผิดพลาดให้ rollback
+      await conn.rollback();
+      throw error;
     }
-
-    res.json({
-      status: 'success',
-      message: 'บันทึกสิทธิ์ผู้ใช้งานสำเร็จ'
-    });
 
   } catch (error) {
     console.error('Error saving admin role:', error);
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถบันทึกสิทธิ์ผู้ใช้งานได้'
+      message: 'ไม่สามารถบันทึกสิทธิ์ผู้ใช้งานได้',
+      error: error.message
     });
+  } finally {
+    if (conn) {
+      conn.release();
+    }
   }
 });
 
 // ใช้ใน: SuperAdmin.vue, UserManagement.vue
 app.delete('/api/remove-admin-role/:emp_id', async (req, res) => {
+  let conn;
   try {
-    const { emp_id } = req.params;
+    const empId = req.params.emp_id;
+    
+    if (!empId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'กรุณาระบุรหัสพนักงาน'
+      });
+    }
 
-    // ลบข้อมูลจากตาราง users
-    const connection = await pool.getConnection();
-    await connection.execute(
-      'DELETE FROM users WHERE emp_id = ?',
-      [emp_id]
+    conn = await pool.getConnection();
+    
+    // เริ่ม transaction
+    await conn.beginTransaction();
+
+    // ตรวจสอบว่ามีข้อมูลผู้ใช้อยู่หรือไม่
+    const [user] = await conn.query(
+      'SELECT * FROM users WHERE emp_id = ?',
+      [empId]
     );
 
+    if (user.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลผู้ใช้'
+      });
+    }
+
+    // อัพเดต role_id เป็น 1 (User)
+    await conn.query(
+      'UPDATE users SET role_id = 1, updated_at = CURRENT_TIMESTAMP WHERE emp_id = ?',
+      [empId]
+    );
+
+    // ยืนยัน transaction
+    await conn.commit();
+    
     res.json({
       status: 'success',
-      message: 'ลบสิทธิ์ผู้ใช้งานสำเร็จ'
+      message: 'เปลี่ยนสิทธิ์เป็นผู้ใช้งานทั่วไปสำเร็จ'
     });
 
   } catch (error) {
+    if (conn) {
+      await conn.rollback();
+    }
     console.error('Error removing admin role:', error);
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถลบสิทธิ์ผู้ใช้งานได้'
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
 // ใช้ใน: SuperAdmin.vue, UserManagement.vue
 app.get('/api/admin-users', async (req, res) => {
+  let conn;
   try {
-    const connection = await pool.getConnection();
-    const [users] = await connection.query(`
-      SELECT 
-        u.*,
-        r.name as role_name
-      FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE r.name IN ('admin', 'superadmin')
-    `);
+    conn = await pool.getConnection();
 
-    res.json(users);
+    // ดึงข้อมูล admin users จากตาราง users
+    const [adminUsers] = await conn.query(
+      `SELECT emp_id, role_id, title_s_desc, first_name, last_name, 
+       dept_change_code, dept_full, created_at, updated_at 
+       FROM users 
+       ORDER BY created_at DESC`
+    );
+
+    // ดึงข้อมูลผู้ใช้จากระบบหลัก (AD)
+    try {
+      const adResponse = await axios.get('http://localhost:3007/api/all-users');
+      const adUsers = adResponse.data.data.dataDetail;
+
+      // รวมข้อมูลจากทั้งสองแหล่ง
+      const combinedUsers = adUsers.map(adUser => {
+        const adminUser = adminUsers.find(admin => admin.emp_id === adUser.emp_id);
+        return {
+          emp_id: adUser.emp_id,
+          role_id: adminUser ? adminUser.role_id : 1, // ถ้าไม่มีในตาราง users ให้เป็น user ทั่วไป
+          title_s_desc: adUser.title_s_desc,
+          first_name: adUser.first_name,
+          last_name: adUser.last_name,
+          dept_change_code: adUser.dept_change_code,
+          dept_full: adUser.dept_full,
+          created_at: adminUser ? adminUser.created_at : null,
+          updated_at: adminUser ? adminUser.updated_at : null
+        };
+      });
+
+      res.json(combinedUsers);
+    } catch (adError) {
+      console.error('Error fetching AD users:', adError);
+      // ถ้าไม่สามารถดึงข้อมูลจาก AD ได้ ให้ส่งเฉพาะข้อมูล admin
+      res.json(adminUsers);
+    }
+
   } catch (error) {
     console.error('Error fetching admin users:', error);
     res.status(500).json({
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลผู้ใช้งานได้'
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
