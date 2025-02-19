@@ -58,18 +58,16 @@
         <table>
           <thead>
             <tr>
-              <th>วันที่</th>
               <th>ข้อมูลสำคัญ</th>
               <th>รายละเอียด</th>
               <th>แผนก</th>
-              <th>ผู้บันทึก</th>
               <th>ไฟล์/รูปภาพ</th>
+              <th>วันที่</th>
               <th class="text-center">การจัดการ</th>
             </tr>
           </thead>
           <tbody v-if="filteredActivities.length > 0">
             <tr v-for="activity in filteredActivities" :key="activity.id">
-              <td>{{ formatDate(activity.created_at) }}</td>
               <td>
                 <div class="importance-info">
                   <span :class="getImportanceClass(activity.important_info)">
@@ -84,14 +82,6 @@
               </td>
               <td>
                 <span class="department-badge">{{ activity.dept_full }}</span>
-              </td>
-              <td>
-                <div class="user-info">
-                  <div class="created-by">
-                    <i class="fas fa-user-edit"></i>
-                    <span>{{ activity.creator_name || 'ไม่ระบุผู้บันทึก' }}</span>
-                  </div>
-                </div>
               </td>
               <td>
                 <div class="attachments">
@@ -114,8 +104,12 @@
                   </div>
                 </div>
               </td>
+              <td>{{ formatDate(activity.created_at) }}</td>
               <td class="text-center">
                 <div class="action-buttons">
+                  <button @click="viewCreator(activity)" class="btn-view" title="ดูข้อมูลผู้บันทึก">
+                    <i class="fas fa-user"></i>
+                  </button>
                   <button @click="editActivity(activity)" class="btn-edit">
                     <i class="fas fa-edit"></i>
                   </button>
@@ -258,6 +252,21 @@
     <div v-if="showImageModal" class="image-modal" @click="closeImageModal">
       <img :src="selectedImage" alt="Full size image">
     </div>
+
+    <!-- Creator Modal -->
+    <div v-if="showCreatorModal" class="creator-modal">
+      <div class="creator-content">
+        <div class="creator-header">
+          <h2>ข้อมูลผู้บันทึก</h2>
+          <button @click="closeCreatorModal" class="close-btn">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="creator-info">
+          <p>ชื่อ: {{ selectedActivity.first_name }} {{ selectedActivity.last_name }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -287,7 +296,8 @@ export default {
       selectedActivity: null,
       selectedImage: null,
       departments: [],
-      selectedDepartment: ''
+      selectedDepartment: '',
+      showCreatorModal: false
     }
   },
 
@@ -492,6 +502,16 @@ export default {
     closeImageModal() {
       this.showImageModal = false;
       this.selectedImage = null;
+    },
+
+    viewCreator(activity) {
+      this.selectedActivity = activity;
+      this.showCreatorModal = true;
+    },
+
+    closeCreatorModal() {
+      this.showCreatorModal = false;
+      this.selectedActivity = null;
     }
   },
 
@@ -791,6 +811,22 @@ td {
 .action-buttons {
   display: flex;
   gap: 8px;
+  justify-content: center;
+}
+
+.btn-view {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-view:hover {
+  background: #45a049;
+  transform: translateY(-2px);
 }
 
 .btn-edit, .btn-delete {
@@ -1241,6 +1277,43 @@ textarea.form-control {
 }
 
 .close-btn:hover {
+  color: #333;
+}
+
+.creator-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.creator-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+}
+
+.creator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.creator-info {
+  margin: 15px 0;
+}
+
+.creator-info p {
+  margin: 8px 0;
   color: #333;
 }
 </style> 
