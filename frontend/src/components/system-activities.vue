@@ -299,33 +299,68 @@ export default {
       this.isSubmitted = true;
 
       // Validate required fields
-      if (!this.selectedSystemId || !this.details?.trim()) {
+      if (!this.selectedSystemId || !this.details?.trim() || !this.importantInfo) {
         this.toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
         return;
       }
 
       try {
         this.isSubmitting = true;
+        console.log('Submitting form with data:', {
+          systemId: this.selectedSystemId,
+          importantInfo: this.importantInfo,
+          details: this.details,
+          deptInfo: this.deptInfo
+        });
 
         const formData = new FormData();
-        formData.append('systemId', this.selectedSystemId);
+        formData.append('system_id', this.selectedSystemId);
         formData.append('details', this.details.trim());
-        formData.append('importantInfo', this.importantInfo || '');
+        formData.append('important_info', this.importantInfo);
+        
+        // เพิ่มข้อมูลแผนก
+        if (!this.deptInfo?.dept_change_code || !this.deptInfo?.dept_full) {
+          this.toast.error('ไม่พบข้อมูลแผนก กรุณาเข้าสู่ระบบใหม่');
+          this.isSubmitting = false;
+          return;
+        }
+
+        formData.append('dept_change_code', this.deptInfo.dept_change_code);
+        formData.append('dept_full', this.deptInfo.dept_full);
 
         // Add files
         if (this.files && this.files.length > 0) {
           for (let i = 0; i < this.files.length; i++) {
-            formData.append('files', this.files[i]);
+            const file = this.files[i];
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+              this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+              this.isSubmitting = false;
+              return;
+            }
+            formData.append('files[]', file);
           }
         }
 
         // Add images
         if (this.images && this.images.length > 0) {
           for (let i = 0; i < this.images.length; i++) {
-            formData.append('images', this.images[i]);
+            const image = this.images[i];
+            if (image.size > 5 * 1024 * 1024) { // 5MB limit
+              this.toast.error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
+              this.isSubmitting = false;
+              return;
+            }
+            formData.append('images[]', image);
           }
         }
 
+        // เพิ่ม created_by จาก localStorage
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (userData?.emp_id) {
+          formData.append('created_by', userData.emp_id);
+        }
+
+        console.log('Sending request to server...');
         const response = await axios.post(
           'http://localhost:8088/api/activities',
           formData,
@@ -333,11 +368,11 @@ export default {
             headers: {
               'Content-Type': 'multipart/form-data'
             },
-            timeout: 30000,
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity
+            timeout: 30000 // 30 seconds timeout
           }
         );
+
+        console.log('Server response:', response.data);
 
         if (response.data.status === 'success') {
           this.toast.success('บันทึกข้อมูลสำเร็จ');
@@ -354,10 +389,7 @@ export default {
           this.toast.error(error.response?.data?.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
         }
       } finally {
-        // รอ 30 วินาทีก่อนที่จะสามารถกดบันทึกได้อีกครั้ง
-        setTimeout(() => {
-          this.isSubmitting = false;
-        }, 30000);
+        this.isSubmitting = false;
       }
     },
     resetForm() {

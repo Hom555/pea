@@ -900,27 +900,26 @@ async function checkDuplicateActivity(conn, data) {
 }
 
 // แก้ไข API endpoint สำหรับบันทึกกิจกรรม
-app.post('/api/activities', upload.fields([
-  { name: 'files', maxCount: 5 },
-  { name: 'images', maxCount: 5 }
-]), async (req, res) => {
+app.post('/api/activities', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    await conn.beginTransaction(); // เริ่ม transaction
+    await conn.beginTransaction();
     
+    console.log('Received data:', req.body); // เพิ่ม log
+
     // ตรวจสอบข้อมูลที่จำเป็น
-    if (!req.body.systemId || !req.body.details?.trim() || !req.body.importantInfoId) {
+    if (!req.body.system_id || !req.body.details?.trim() || !req.body.important_info || !req.body.dept_change_code || !req.body.dept_full) {
       return res.status(400).json({
         status: 'error',
         message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
-    // ตรวจสอบว่า importantInfoId มีอยู่จริงใน system_details
+    // ตรวจสอบว่า important_info มีอยู่จริงใน system_details
     const [systemDetail] = await conn.query(
       'SELECT id, important_info FROM system_details WHERE id = ? AND system_id = ?',
-      [req.body.importantInfoId, req.body.systemId]
+      [req.body.important_info, req.body.system_id]
     );
 
     if (systemDetail.length === 0) {
@@ -930,20 +929,34 @@ app.post('/api/activities', upload.fields([
       });
     }
 
-    // ตรวจสอบข้อมูลซ้ำ
-    const duplicateCheck = await checkDuplicateActivity(conn, {
-      system_id: req.body.systemId,
-      important_info: req.body.importantInfoId, // ใช้ ID ของ system_details
-      details: req.body.details.trim(),
-      dept_change_code: req.user.dept_change_code,
-      created_by: req.user.emp_id
-    });
+    // จัดการไฟล์
+    let filePaths = [];
+    let imagePaths = [];
 
-    if (duplicateCheck.isDuplicate) {
-      return res.status(400).json({
-        status: 'error',
-        message: duplicateCheck.message
-      });
+    if (req.files) {
+      // จัดการไฟล์เอกสาร
+      if (req.files['files[]']) {
+        const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
+        for (const file of files) {
+          const timestamp = Date.now();
+          const filename = `${timestamp}-${file.name}`;
+          const uploadPath = path.join(__dirname, 'uploads', filename);
+          await file.mv(uploadPath);
+          filePaths.push('/uploads/' + filename);
+        }
+      }
+
+      // จัดการไฟล์รูปภาพ
+      if (req.files['images[]']) {
+        const images = Array.isArray(req.files['images[]']) ? req.files['images[]'] : [req.files['images[]']];
+        for (const image of images) {
+          const timestamp = Date.now();
+          const filename = `${timestamp}-${image.name}`;
+          const uploadPath = path.join(__dirname, 'uploads', filename);
+          await image.mv(uploadPath);
+          imagePaths.push('/uploads/' + filename);
+        }
+      }
     }
 
     // บันทึกข้อมูล
@@ -955,19 +968,23 @@ app.post('/api/activities', upload.fields([
         dept_change_code,
         dept_full,
         created_by,
+        file_paths,
+        image_paths,
         created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
-        req.body.systemId,
-        req.body.importantInfoId, // ใช้ ID ของ system_details
+        req.body.system_id,
+        req.body.important_info,
         req.body.details.trim(),
-        req.user.dept_change_code,
-        req.user.dept_full,
-        req.user.emp_id
+        req.body.dept_change_code,
+        req.body.dept_full,
+        req.body.created_by || null,
+        filePaths.length > 0 ? JSON.stringify(filePaths) : null,
+        imagePaths.length > 0 ? JSON.stringify(imagePaths) : null
       ]
     );
 
-    await conn.commit(); // ยืนยัน transaction
+    await conn.commit();
 
     res.json({
       status: 'success',
@@ -976,7 +993,7 @@ app.post('/api/activities', upload.fields([
     });
 
   } catch (error) {
-    if (conn) await conn.rollback(); // ยกเลิก transaction ถ้าเกิดข้อผิดพลาด
+    if (conn) await conn.rollback();
     console.error('Error saving activity:', error);
     res.status(500).json({
       status: 'error',
