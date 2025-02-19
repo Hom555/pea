@@ -357,7 +357,8 @@ export default {
           dept_name: activity.dept_full || 'ไม่ระบุแผนก',
           creator_name: activity.first_name ? 
             `${activity.title_s_desc || ''}${activity.first_name} ${activity.last_name}` :
-            'ไม่ระบุผู้บันทึก'
+            'ไม่ระบุผู้บันทึก',
+          important_info: activity.system_details_important_info || activity.important_info || 'ไม่ระบุ'
         }));
 
         // ดึงรายชื่อแผนกทั้งหมดจากข้อมูลกิจกรรม

@@ -1135,10 +1135,12 @@ app.get('/api/activities', async (req, res) => {
         u.first_name,
         u.last_name,
         u.dept_full as user_dept_full,
-        s.name_th as system_name
+        s.name_th as system_name,
+        sd.important_info as system_details_important_info
       FROM activities a
       LEFT JOIN users u ON a.created_by = u.emp_id
       LEFT JOIN system_master s ON a.system_id = s.id
+      LEFT JOIN system_details sd ON a.system_id = sd.system_id
       ORDER BY a.created_at DESC`
     );
 
