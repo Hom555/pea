@@ -154,13 +154,13 @@
 
           <!-- Form Actions -->
           <div class="form-actions">
-            <button type="button" @click="resetForm" class="btn-secondary">
+            <button type="button" @click="resetForm" class="btn-secondary" :disabled="isSubmitting">
               <i class="fas fa-redo"></i>
               ล้างฟอร์ม
             </button>
-            <button type="submit" class="btn-primary">
-              <i class="fas fa-save"></i>
-              บันทึกกิจกรรม
+            <button type="submit" class="btn-submit" :disabled="isSubmitting">
+              <i :class="isSubmitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'"></i>
+              {{ isSubmitting ? 'กำลังบันทึก...' : 'บันทึกกิจกรรม' }}
             </button>
           </div>
         </form>
@@ -190,7 +190,8 @@ export default {
       images: [],
       isSubmitted: false,
       activities: [],
-      deptInfo: null
+      deptInfo: null,
+      isSubmitting: false
     };
   },
   computed: {
@@ -291,29 +292,34 @@ export default {
       this.images = validImages;
     },
     async submitForm() {
+      if (this.isSubmitting) {
+        return;
+      }
+
+      this.isSubmitted = true;
+
+      // Validate required fields
+      if (!this.selectedSystemId || !this.details?.trim()) {
+        this.toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
+        return;
+      }
+
       try {
-        if (!this.selectedSystemId) {
-          this.toast.error("กรุณาเลือกระบบงาน");
-          return;
-        }
-        if (!this.details?.trim()) {
-          this.toast.error("กรุณากรอกรายละเอียดกิจกรรม");
-          return;
-        }
+        this.isSubmitting = true;
 
         const formData = new FormData();
         formData.append('systemId', this.selectedSystemId);
         formData.append('details', this.details.trim());
         formData.append('importantInfo', this.importantInfo || '');
 
-        // เพิ่มไฟล์
+        // Add files
         if (this.files && this.files.length > 0) {
           for (let i = 0; i < this.files.length; i++) {
             formData.append('files', this.files[i]);
           }
         }
 
-        // เพิ่มรูปภาพ
+        // Add images
         if (this.images && this.images.length > 0) {
           for (let i = 0; i < this.images.length; i++) {
             formData.append('images', this.images[i]);
@@ -338,7 +344,7 @@ export default {
           this.resetForm();
           this.$emit('activity-added');
         } else {
-          this.toast.error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+          throw new Error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
         }
       } catch (error) {
         console.error('Error submitting form:', error);
@@ -347,6 +353,11 @@ export default {
         } else {
           this.toast.error(error.response?.data?.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
         }
+      } finally {
+        // รอ 30 วินาทีก่อนที่จะสามารถกดบันทึกได้อีกครั้ง
+        setTimeout(() => {
+          this.isSubmitting = false;
+        }, 30000);
       }
     },
     resetForm() {
@@ -600,31 +611,15 @@ textarea:focus {
   margin-top: 24px;
 }
 
-.btn-primary,
 .btn-secondary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  background: #95a5a6;
+  color: white;
   border: none;
+  padding: 8px 16px;
   border-radius: 6px;
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.3s ease;
-}
-
-.btn-primary {
-  background: #3498db;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #2980b9;
-}
-
-.btn-secondary {
-  background: #95a5a6;
-  color: white;
 }
 
 .btn-secondary:hover {
@@ -751,10 +746,41 @@ textarea:focus {
     flex-direction: column;
   }
 
-  .btn-primary,
   .btn-secondary {
     width: 100%;
     justify-content: center;
   }
+}
+
+.btn-submit {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background-color: #4338ca;
+}
+
+.btn-submit:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.fa-spinner {
+  animation: spin 1s linear infinite;
 }
 </style>

@@ -869,69 +869,118 @@ app.delete('/api/system-details/:id', getUserData, async (req, res) => {
 });
 
 // === Activities Management ===
-// ใช้ใน: system-activities.vue
-app.post('/api/activities', getUserData, async (req, res) => {
+// ปรับปรุงฟังก์ชันตรวจสอบข้อมูลซ้ำ
+async function checkDuplicateActivity(conn, data) {
+  const { system_id, important_info, details, dept_change_code, created_by } = data;
+  
+  // ตรวจสอบข้อมูลซ้ำในช่วง 30 วินาทีล่าสุด และเพิ่มเงื่อนไขการตรวจสอบ
+  const [duplicates] = await conn.query(
+    `SELECT id, created_at FROM activities 
+     WHERE system_id = ? 
+     AND important_info = ? 
+     AND TRIM(details) = TRIM(?)
+     AND dept_change_code = ?
+     AND created_by = ?
+     AND created_at >= NOW() - INTERVAL 30 SECOND
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [system_id, important_info, details, dept_change_code, created_by]
+  );
+  
+  if (duplicates.length > 0) {
+    const timeDiff = Date.now() - new Date(duplicates[0].created_at).getTime();
+    const secondsDiff = Math.floor(timeDiff / 1000);
+    return {
+      isDuplicate: true,
+      message: `กรุณารอ ${30 - secondsDiff} วินาที ก่อนบันทึกข้อมูลซ้ำ`
+    };
+  }
+  
+  return { isDuplicate: false };
+}
+
+// แก้ไข API endpoint สำหรับบันทึกกิจกรรม
+app.post('/api/activities', upload.fields([
+  { name: 'files', maxCount: 5 },
+  { name: 'images', maxCount: 5 }
+]), async (req, res) => {
   let conn;
   try {
-    console.log('Received activity data:', req.body);
-    console.log('Received files:', req.files);
-    console.log('User data:', req.user);
-
-    const { systemId, importantInfo, details } = req.body;
-    const userDept = req.user.dept_change_code;
-    const userDeptFull = req.user.dept_full;
-    const userId = req.user.emp_id;
-
-    // Validate required fields
-    if (!systemId || !details) {
-      return res.status(400).json({ 
+    conn = await pool.getConnection();
+    await conn.beginTransaction(); // เริ่ม transaction
+    
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!req.body.systemId || !req.body.details?.trim() || !req.body.importantInfoId) {
+      return res.status(400).json({
         status: 'error',
         message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
-    conn = await pool.getConnection();
+    // ตรวจสอบว่า importantInfoId มีอยู่จริงใน system_details
+    const [systemDetail] = await conn.query(
+      'SELECT id, important_info FROM system_details WHERE id = ? AND system_id = ?',
+      [req.body.importantInfoId, req.body.systemId]
+    );
 
-    // ตรวจสอบว่าระบบนี้เป็นของแผนกผู้ใช้หรือไม่
-    const [system] = await conn.query(`
-      SELECT dept_change_code 
-      FROM system_master 
-      WHERE id = ?
-    `, [systemId]);
-
-    if (system.length === 0) {
+    if (systemDetail.length === 0) {
       return res.status(404).json({
         status: 'error',
-        message: 'ไม่พบข้อมูลระบบ'
+        message: 'ไม่พบข้อมูลหัวข้อที่เลือก'
       });
     }
 
-    // บันทึกข้อมูลกิจกรรม
+    // ตรวจสอบข้อมูลซ้ำ
+    const duplicateCheck = await checkDuplicateActivity(conn, {
+      system_id: req.body.systemId,
+      important_info: req.body.importantInfoId, // ใช้ ID ของ system_details
+      details: req.body.details.trim(),
+      dept_change_code: req.user.dept_change_code,
+      created_by: req.user.emp_id
+    });
+
+    if (duplicateCheck.isDuplicate) {
+      return res.status(400).json({
+        status: 'error',
+        message: duplicateCheck.message
+      });
+    }
+
+    // บันทึกข้อมูล
     const [result] = await conn.query(
       `INSERT INTO activities (
-        system_id, 
-        important_info, 
-        details, 
+        system_id,
+        important_info,
+        details,
         dept_change_code,
         dept_full,
         created_by,
         created_at
       ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [systemId, importantInfo, details, userDept, userDeptFull, userId]
+      [
+        req.body.systemId,
+        req.body.importantInfoId, // ใช้ ID ของ system_details
+        req.body.details.trim(),
+        req.user.dept_change_code,
+        req.user.dept_full,
+        req.user.emp_id
+      ]
     );
+
+    await conn.commit(); // ยืนยัน transaction
 
     res.json({
       status: 'success',
-      message: 'บันทึกกิจกรรมสำเร็จ',
+      message: 'บันทึกข้อมูลสำเร็จ',
       id: result.insertId
     });
 
   } catch (error) {
+    if (conn) await conn.rollback(); // ยกเลิก transaction ถ้าเกิดข้อผิดพลาด
     console.error('Error saving activity:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถบันทึกกิจกรรมได้',
-      error: error.message 
+      message: error.message || 'ไม่สามารถบันทึกข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();
@@ -943,17 +992,30 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
-    const { details, systemId, importantInfo, removedFiles, removedImages } = req.body;
+    const { details, systemId, importantInfoId, removedFiles, removedImages } = req.body;
     const userDept = req.user.dept_change_code;
 
-    if (!details?.trim()) {
+    if (!details?.trim() || !importantInfoId) {
       return res.status(400).json({
         success: false,
-        message: 'กรุณากรอกรายละเอียด'
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
     conn = await pool.getConnection();
+
+    // ตรวจสอบว่า importantInfoId มีอยู่จริงใน system_details
+    const [systemDetail] = await conn.query(
+      'SELECT id, important_info FROM system_details WHERE id = ? AND system_id = ?',
+      [importantInfoId, systemId]
+    );
+
+    if (systemDetail.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'ไม่พบข้อมูลหัวข้อที่เลือก'
+      });
+    }
 
     // ตรวจสอบว่ากิจกรรมนี้เป็นของแผนกผู้ใช้หรือไม่
     const [activity] = await conn.query(
@@ -1005,59 +1067,34 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
-    // จัดการไฟล์ใหม่
-    if (req.files) {
-      const uploadDir = path.join(__dirname, 'uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      // อัพโหลดไฟล์ใหม่
-      if (req.files.files) {
-        const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
-        for (const file of files) {
-          const timestamp = Date.now();
-          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
-          const filename = `${timestamp}-${originalName}`;
-          const uploadPath = path.join(uploadDir, filename);
-          await file.mv(uploadPath);
-          currentFilePaths.push('/uploads/' + filename);
-        }
-      }
-
-      // อัพโหลดรูปภาพใหม่
-      if (req.files.images) {
-        const images = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-        for (const image of images) {
-          const timestamp = Date.now();
-          const originalName = Buffer.from(image.name, 'binary').toString('utf8');
-          const filename = `${timestamp}-${originalName}`;
-          const uploadPath = path.join(uploadDir, filename);
-          await image.mv(uploadPath);
-          currentImagePaths.push('/uploads/' + filename);
-        }
-      }
-    }
-
     // อัพเดตข้อมูลในฐานข้อมูล
     await conn.query(
       `UPDATE activities 
        SET details = ?, 
+           important_info = ?,
            file_paths = ?, 
            image_paths = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         details.trim(),
+        importantInfoId,
         currentFilePaths.join(',') || null,
         currentImagePaths.join(',') || null,
         id
       ]
     );
 
-    // ดึงข้อมูลที่อัพเดตแล้ว
+    // ดึงข้อมูลที่อัพเดตแล้วเพื่อส่งกลับ
     const [updatedActivity] = await conn.query(
-      'SELECT * FROM activities WHERE id = ?',
+      `SELECT 
+        a.*,
+        sd.important_info as system_important_info,
+        sd.reference_no,
+        sd.additional_info as system_additional_info
+       FROM activities a
+       LEFT JOIN system_details sd ON a.system_id = sd.system_id AND a.important_info = sd.id
+       WHERE a.id = ?`,
       [id]
     );
 
@@ -1080,36 +1117,39 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
 });
 
 // ใช้ใน: Dataactivities.vue
-app.get('/api/activities/:systemId/:importantInfoId', getUserData, async (req, res) => {
-  const { systemId, importantInfoId } = req.params;
+app.get('/api/activities/:systemId/:importantInfoId', async (req, res) => {
   let conn;
-
   try {
+    const { systemId, importantInfoId } = req.params;
     conn = await pool.getConnection();
-
-    console.log('Fetching activities with params:', {
-      systemId,
-      importantInfoId
-    });
-
-    // ดึงข้อมูลกิจกรรมที่ตรงกับ systemId และ importantInfoId โดยไม่จำกัดแผนก
+    
     const [activities] = await conn.query(
-      `SELECT 
-        a.*,
-        COALESCE(u.first_name, '') as first_name,
-        COALESCE(u.last_name, '') as last_name,
-        COALESCE(u.title_s_desc, '') as title_s_desc,
-        COALESCE(u.dept_full, '') as creator_dept_full
-       FROM activities a
-       LEFT JOIN users u ON a.created_by = u.emp_id
-       WHERE a.system_id = ? 
-       AND a.important_info = ?
-       ORDER BY a.created_at DESC`,
+      `SELECT DISTINCT
+         a.*,
+         sd.important_info as important_info_display,
+         COALESCE(u.first_name, '') as first_name,
+         COALESCE(u.last_name, '') as last_name,
+         COALESCE(u.title_s_desc, '') as title_s_desc,
+         COALESCE(u.dept_full, '') as creator_dept_full
+        FROM activities a
+        LEFT JOIN users u ON a.created_by = u.emp_id
+        LEFT JOIN system_details sd ON sd.id = a.important_info
+        WHERE a.system_id = ? 
+        AND a.important_info = ?
+        GROUP BY a.id
+        ORDER BY a.created_at DESC`,
       [systemId, importantInfoId]
     );
 
-    console.log('Found activities:', activities.length);
-    res.json(activities);
+    // แปลงข้อมูลให้ใช้ important_info จาก system_details
+    const transformedActivities = activities.map(activity => ({
+      ...activity,
+      important_info_original: activity.important_info,
+      important_info: activity.important_info_display
+    }));
+
+    console.log('Found activities:', transformedActivities.length);
+    res.json(transformedActivities);
 
   } catch (error) {
     console.error('Error fetching activities:', error);
@@ -1129,23 +1169,33 @@ app.get('/api/activities', async (req, res) => {
     conn = await pool.getConnection();
     
     const [activities] = await conn.query(
-      `SELECT 
+      `SELECT DISTINCT
         a.*,
         u.title_s_desc,
         u.first_name,
         u.last_name,
         u.dept_full as user_dept_full,
         s.name_th as system_name,
-        sd.important_info as system_details_important_info
+        sd.important_info as important_info_display,
+        sd.reference_no,
+        sd.additional_info as system_additional_info
       FROM activities a
       LEFT JOIN users u ON a.created_by = u.emp_id
       LEFT JOIN system_master s ON a.system_id = s.id
-      LEFT JOIN system_details sd ON a.system_id = sd.system_id
+      LEFT JOIN system_details sd ON sd.id = a.important_info
+      GROUP BY a.id, a.created_at
       ORDER BY a.created_at DESC`
     );
 
-    console.log('Found activities:', activities.length);
-    res.json(activities);
+    // แปลงข้อมูลให้ใช้ important_info จาก system_details
+    const transformedActivities = activities.map(activity => ({
+      ...activity,
+      important_info_original: activity.important_info,
+      important_info: activity.important_info_display
+    }));
+
+    console.log('Found activities:', transformedActivities.length);
+    res.json(transformedActivities);
 
   } catch (error) {
     console.error('Error fetching activities:', error);
@@ -1590,7 +1640,7 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
-    // ลบข้อมูลจากฐานข้อมูล
+    // ลบข้อมูล
     await conn.query('DELETE FROM activities WHERE id = ?', [id]);
 
     res.json({
