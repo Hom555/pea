@@ -139,7 +139,7 @@
                         class="file-item">
                         <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
                           <i class="fas fa-file-alt"></i>
-                          <span>{{ getFileName(file) }}</span>
+                          <span class="file-name">{{ getFileName(file) }}</span>
                         </a>
                         <button @click="deleteFile(activity, index)" class="remove-btn">
                           <i class="fas fa-times"></i>
@@ -181,10 +181,10 @@
                       >
                         <div class="thumbnail">
                           <img
-                            :src="`http://localhost:8088${image}`"
+                            :src="`http://localhost:8088${image.trim()}`"
                             :alt="getFileName(image)"
                             loading="lazy"
-                            @click="openImage(`http://localhost:8088${image}`)"
+                            @click="openImage(image.trim())"
                           />
                           <button 
                             v-if="editingId === activity.id"
@@ -238,10 +238,10 @@
                     >
                       <div class="thumbnail">
                         <img
-                          :src="`http://localhost:8088${image}`"
+                          :src="`http://localhost:8088${image.trim()}`"
                           :alt="getFileName(image)"
                           loading="lazy"
-                          @click="openImage(`http://localhost:8088${image}`)"
+                          @click="openImage(image.trim())"
                         />
                       </div>
                     </div>
@@ -441,14 +441,29 @@ export default {
       });
     },
     getFileName(filePath) {
-      if (!filePath) return '';
-      const filename = filePath.split('/').pop();
-      const firstHyphenIndex = filename.indexOf('-');
-      if (firstHyphenIndex === -1) return filename;
-      return filename.substring(firstHyphenIndex + 1);
+      if (!filePath) return "";
+      try {
+        const parts = filePath.split("/");
+        const filename = parts[parts.length - 1];
+        // Split on the first hyphen only to separate timestamp from filename
+        const firstHyphenIndex = filename.indexOf('-');
+        if (firstHyphenIndex === -1) return filename;
+        // Return everything after the first hyphen
+        return filename.substring(firstHyphenIndex + 1);
+      } catch (error) {
+        console.error("Error getting filename:", error);
+        return "Unknown file";
+      }
     },
-    openImage(imageUrl) {
-      window.open(imageUrl, '_blank');
+    openImage(imagePath) {
+      try {
+        const baseUrl = 'http://localhost:8088';
+        const fullUrl = `${baseUrl}${imagePath}`;
+        window.open(fullUrl, '_blank');
+      } catch (error) {
+        console.error('Error opening image:', error);
+        this.toast.error('ไม่สามารถเปิดรูปภาพได้');
+      }
     },
     getSystemName(systemId) {
       const system = this.systemList.find(s => s.id === parseInt(systemId));
@@ -529,33 +544,62 @@ export default {
           return;
         }
 
+        // ตรวจสอบข้อมูลผู้ใช้
+        const userData = localStorage.getItem('userData');
+        if (!userData) {
+          this.toast.error("ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่");
+          return;
+        }
+
+        // ตรวจสอบข้อมูลแผนก
+        const deptInfo = this.getUserDepartment;
+        if (!deptInfo?.dept_change_code || !deptInfo?.dept_full) {
+          this.toast.error("ไม่พบข้อมูลแผนก กรุณาเข้าสู่ระบบใหม่");
+          return;
+        }
+
         const formData = new FormData();
         formData.append("details", this.editedDetails.trim());
-        formData.append("systemId", this.selectedSystemId);
-        formData.append("importantInfo", this.selectedImportantInfoId);
+        formData.append("system_id", activity.system_id);
+        formData.append("important_info", activity.important_info_id);
+        formData.append("dept_change_code", deptInfo.dept_change_code);
+        formData.append("dept_full", deptInfo.dept_full);
+        formData.append("created_by", JSON.parse(userData).emp_id);
 
         // เพิ่มไฟล์ใหม่
         if (this.newFiles.length > 0) {
-          this.newFiles.forEach(file => {
-            formData.append("files", file);
-          });
+          for (const file of this.newFiles) {
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+              this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+              return;
+            }
+            formData.append("files[]", file);
+          }
         }
 
         // เพิ่มรูปภาพใหม่
         if (this.newImages.length > 0) {
-          this.newImages.forEach(image => {
-            formData.append("images", image);
-          });
+          for (const image of this.newImages) {
+            if (image.size > 5 * 1024 * 1024) { // 5MB limit
+              this.toast.error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
+              return;
+            }
+            formData.append("images[]", image);
+          }
         }
 
         // ส่งข้อมูลไฟล์ที่ถูกลบ
-        if (activity.deletedFile) {
-          formData.append("removedFiles", activity.deletedFile);
+        if (activity.deletedFiles && activity.deletedFiles.length > 0) {
+          activity.deletedFiles.forEach(file => {
+            formData.append("removedFiles[]", file);
+          });
         }
 
         // ส่งข้อมูลรูปภาพที่ถูกลบ
-        if (activity.deletedImage) {
-          formData.append("removedImages", activity.deletedImage);
+        if (activity.deletedImages && activity.deletedImages.length > 0) {
+          activity.deletedImages.forEach(image => {
+            formData.append("removedImages[]", image);
+          });
         }
 
         const response = await axios.put(
@@ -564,25 +608,25 @@ export default {
           {
             headers: {
               "Content-Type": "multipart/form-data"
-            }
+            },
+            timeout: 30000 // 30 seconds timeout
           }
         );
 
-        if (response.data.success) {
+        if (response.data.status === 'success') {
           this.toast.success("บันทึกการแก้ไขสำเร็จ");
-          this.editingId = null;
-          this.editedDetails = "";
-          this.newFiles = [];
-          this.newImages = [];
-          await this.fetchActivities();
+          this.closeEdit();
+          await this.fetchActivities(); // รีโหลดข้อมูลใหม่
         } else {
-          this.toast.error(response.data.message || "ไม่สามารถบันทึกการแก้ไขได้");
+          throw new Error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
         }
       } catch (error) {
         console.error("Error saving edit:", error);
-        this.toast.error(
-          error.response?.data?.message || "เกิดข้อผิดพลาดในการบันทึกการแก้ไข"
-        );
+        if (error.code === 'ECONNABORTED') {
+          this.toast.error("การเชื่อมต่อกับเซิร์ฟเวอร์หมดเวลา กรุณาลองใหม่อีกครั้ง");
+        } else {
+          this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
+        }
       }
     },
     handleFileChange(event) {
@@ -605,10 +649,19 @@ export default {
         return;
       }
 
-      const filePaths = activity.file_paths.split(',');
-      activity.deletedFile = filePaths[fileIndex];
+      const filePaths = activity.file_paths ? activity.file_paths.split(',') : [];
+      const deletedFile = filePaths[fileIndex];
+      
+      // เก็บไฟล์ที่ถูกลบ
+      if (!activity.deletedFiles) {
+        activity.deletedFiles = [];
+      }
+      activity.deletedFiles.push(deletedFile);
+      
+      // ลบไฟล์ออกจาก array
       filePaths.splice(fileIndex, 1);
       activity.file_paths = filePaths.join(',');
+      
       this.toast.info("ลบไฟล์เรียบร้อย");
     },
     deleteImage(activity, imageIndex) {
@@ -616,13 +669,20 @@ export default {
         return;
       }
 
-      const imagePaths = activity.image_paths.split(',');
-      activity.deletedImage = imagePaths[imageIndex];
-      imagePaths.splice(imageIndex, 1);
+      const imagePaths = activity.image_paths ? activity.image_paths.split(',') : [];
+      const deletedImage = imagePaths[imageIndex];
       
-      // อัพเดต UI ทันที (Vue 3 style)
+      // เก็บรูปภาพที่ถูกลบ
+      if (!activity.deletedImages) {
+        activity.deletedImages = [];
+      }
+      activity.deletedImages.push(deletedImage);
+      
+      // ลบรูปภาพออกจาก array
+      imagePaths.splice(imageIndex, 1);
       activity.image_paths = imagePaths.join(',');
-      this.toast.info("ลบรูปภาพเรียบร้อย กรุณากดบันทึกเพื่อยืนยันการเปลี่ยนแปลง");
+      
+      this.toast.info("ลบรูปภาพเรียบร้อย");
     },
     removeNewFile(index) {
       this.newFiles.splice(index, 1);

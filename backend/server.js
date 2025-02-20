@@ -32,19 +32,28 @@ app.use(cors({
 
 app.use(express.json());
 app.use(bodyParser.json());
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(fileUpload({
   createParentPath: true,
   limits: { 
-    fileSize: 10 * 1024 * 1024 // 10MB max-file-size
+    fileSize: 50 * 1024 * 1024 // 50MB max-file-size
   },
-  useTempFiles: true,
-  tempFileDir: '/tmp/',
-  debug: true
+  useTempFiles: false,
+  abortOnLimit: true,
+  responseOnLimit: 'ไฟล์มีขนาดใหญ่เกินกำหนด (50MB)',
+  safeFileNames: true,
+  preserveExtension: true
 }));
 
-// เพิ่ม body size limit
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// สร้างโฟลเดอร์สำหรับเก็บไฟล์
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  fs.chmodSync(uploadsDir, 0o755);
+  console.log('สร้างโฟลเดอร์ uploads สำเร็จ');
+} else {
+  console.log('โฟลเดอร์ uploads มีอยู่แล้ว');
+}
 
 // แก้ไขการจัดการ static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -57,8 +66,7 @@ app.get('/uploads/*', (req, res) => {
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);
   } else {
-    console.log('File not found:', filePath);
-    res.status(404).send('File not found');
+    res.status(404).send('ไม่พบไฟล์');
   }
 });
 
@@ -83,15 +91,6 @@ const storage = multer.diskStorage({
     cb(null, generateUniqueFilename(file.originalname));
   }
 });
-
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  fs.chmodSync(uploadsDir, 0o755);
-  console.log('สร้างโฟลเดอร์ uploads สำเร็จ');
-} else {
-  console.log('โฟลเดอร์ uploads มีอยู่แล้ว');
-}
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
@@ -905,33 +904,9 @@ app.post('/api/activities', async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-    
-    console.log('Received data:', req.body); // เพิ่ม log
 
-    // ตรวจสอบข้อมูลที่จำเป็น
-    if (!req.body.system_id || !req.body.details?.trim() || !req.body.important_info || !req.body.dept_change_code || !req.body.dept_full) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
-      });
-    }
-
-    // ตรวจสอบว่า important_info มีอยู่จริงใน system_details
-    const [systemDetail] = await conn.query(
-      'SELECT id, important_info FROM system_details WHERE id = ? AND system_id = ?',
-      [req.body.important_info, req.body.system_id]
-    );
-
-    if (systemDetail.length === 0) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบข้อมูลหัวข้อที่เลือก'
-      });
-    }
-
-    // จัดการไฟล์
-    let filePaths = [];
-    let imagePaths = [];
+    const filePaths = [];
+    const imagePaths = [];
 
     if (req.files) {
       // จัดการไฟล์เอกสาร
@@ -939,10 +914,18 @@ app.post('/api/activities', async (req, res) => {
         const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
         for (const file of files) {
           const timestamp = Date.now();
-          const filename = `${timestamp}-${file.name}`;
-          const uploadPath = path.join(__dirname, 'uploads', filename);
-          await file.mv(uploadPath);
-          filePaths.push('/uploads/' + filename);
+          const originalName = file.name;
+          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
+          const uploadPath = path.join(uploadsDir, safeName);
+          
+          try {
+            await file.mv(uploadPath);
+            filePaths.push(`/uploads/${safeName}`);
+            console.log('Uploaded file:', safeName);
+          } catch (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            throw new Error('ไม่สามารถอัพโหลดไฟล์ได้');
+          }
         }
       }
 
@@ -951,10 +934,18 @@ app.post('/api/activities', async (req, res) => {
         const images = Array.isArray(req.files['images[]']) ? req.files['images[]'] : [req.files['images[]']];
         for (const image of images) {
           const timestamp = Date.now();
-          const filename = `${timestamp}-${image.name}`;
-          const uploadPath = path.join(__dirname, 'uploads', filename);
-          await image.mv(uploadPath);
-          imagePaths.push('/uploads/' + filename);
+          const originalName = image.name;
+          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
+          const uploadPath = path.join(uploadsDir, safeName);
+          
+          try {
+            await image.mv(uploadPath);
+            imagePaths.push(`/uploads/${safeName}`);
+            console.log('Uploaded image:', safeName);
+          } catch (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            throw new Error('ไม่สามารถอัพโหลดรูปภาพได้');
+          }
         }
       }
     }
@@ -979,8 +970,8 @@ app.post('/api/activities', async (req, res) => {
         req.body.dept_change_code,
         req.body.dept_full,
         req.body.created_by || null,
-        filePaths.length > 0 ? JSON.stringify(filePaths) : null,
-        imagePaths.length > 0 ? JSON.stringify(imagePaths) : null
+        filePaths.length > 0 ? filePaths.join(',') : null,
+        imagePaths.length > 0 ? imagePaths.join(',') : null
       ]
     );
 
@@ -989,12 +980,23 @@ app.post('/api/activities', async (req, res) => {
     res.json({
       status: 'success',
       message: 'บันทึกข้อมูลสำเร็จ',
-      id: result.insertId
+      activityId: result.insertId,
+      filePaths,
+      imagePaths
     });
 
   } catch (error) {
     if (conn) await conn.rollback();
     console.error('Error saving activity:', error);
+    
+    // ลบไฟล์ที่อัพโหลดไว้ในกรณีที่เกิดข้อผิดพลาด
+    [...filePaths, ...imagePaths].forEach(filePath => {
+      const fullPath = path.join(__dirname, filePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    });
+
     res.status(500).json({
       status: 'error',
       message: error.message || 'ไม่สามารถบันทึกข้อมูลได้'
