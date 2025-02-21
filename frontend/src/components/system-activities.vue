@@ -354,7 +354,7 @@ export default {
           }
         }
 
-        // เพิ่ม created_by จาก localStorage
+        // ดึง emp_id จาก localStorage
         const userData = JSON.parse(localStorage.getItem('userData'));
         if (userData?.emp_id) {
           formData.append('created_by', userData.emp_id);
@@ -367,8 +367,7 @@ export default {
           {
             headers: {
               'Content-Type': 'multipart/form-data'
-            },
-            timeout: 30000 // 30 seconds timeout
+            }
           }
         );
 
@@ -473,6 +472,26 @@ export default {
         URL.revokeObjectURL(this.getImagePreviewUrl(image));
       }
     });
+  },
+  async created() {
+    try {
+      const response = await axios.get("http://localhost:3007/api/data", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (response.data?.data?.dataDetail?.length > 0) {
+        const user = response.data.data.dataDetail[0];
+        // เก็บข้อมูลผู้ใช้ใน localStorage
+        localStorage.setItem('userData', JSON.stringify({
+          emp_id: user.emp_id,
+          // ข้อมูลอื่นๆ
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
   },
 };
 </script>
