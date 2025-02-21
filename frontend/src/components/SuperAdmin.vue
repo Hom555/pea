@@ -17,7 +17,7 @@
               ชื่อระบบ (ภาษาไทย)
             </label>
             <input 
-              v-model="formData.name_th" 
+              v-model="currentNameTH" 
               required
               placeholder="กรอกชื่อระบบภาษาไทย"
             >
@@ -28,31 +28,21 @@
               ชื่อระบบ (ภาษาอังกฤษ)
             </label>
             <input 
-              v-model="formData.name_en" 
+              v-model="currentNameEN" 
               required
               placeholder="Enter system name in English"
             >
           </div>
-          <!-- <div class="form-group">
-            <label>
-              <i class="fas fa-sitemap"></i>
-              กอง
-            </label>
-            <input 
-              v-model="formData.division" 
-              required
-              placeholder="กรอกชื่อกอง"
-            >
-          </div> -->
           <div class="form-group">
             <label>
               <i class="fas fa-building"></i>
               แผนก
             </label>
             <input 
-              v-model="formData.dept_full" 
+              v-model="currentDeptFull" 
               required
               placeholder="กรอกชื่อแผนก"
+              readonly
             >
           </div>
           
@@ -221,14 +211,15 @@ export default {
       showAddModal: false,
       showDeleteModal: false,
       selectedSystem: null,
-      newSystem: {
+      showEditModal: false,
+      // แยกข้อมูลสำหรับการเพิ่มและแก้ไข
+      addForm: {
         name_th: '',
         name_en: '',
         dept_full: '',
         dept_change_code: ''
       },
-      showEditModal: false,
-      formData: {
+      editForm: {
         name_th: '',
         name_en: '',
         dept_full: '',
@@ -251,6 +242,42 @@ export default {
       return this.systems.reduce((total, system) => {
         return total + (system.important_info_count || 0);
       }, 0);
+    },
+    currentNameTH: {
+      get() {
+        return this.showAddModal ? this.addForm.name_th : this.editForm.name_th;
+      },
+      set(value) {
+        if (this.showAddModal) {
+          this.addForm.name_th = value;
+        } else {
+          this.editForm.name_th = value;
+        }
+      }
+    },
+    currentNameEN: {
+      get() {
+        return this.showAddModal ? this.addForm.name_en : this.editForm.name_en;
+      },
+      set(value) {
+        if (this.showAddModal) {
+          this.addForm.name_en = value;
+        } else {
+          this.editForm.name_en = value;
+        }
+      }
+    },
+    currentDeptFull: {
+      get() {
+        return this.showAddModal ? this.addForm.dept_full : this.editForm.dept_full;
+      },
+      set(value) {
+        if (this.showAddModal) {
+          this.addForm.dept_full = value;
+        } else {
+          this.editForm.dept_full = value;
+        }
+      }
     }
   },
   setup() {
@@ -290,10 +317,10 @@ export default {
       if (this.showEditModal) {
         try {
           const formattedData = {
-            nameTH: this.formData.name_th,
-            nameEN: this.formData.name_en,
-            dept_full: this.formData.dept_full,
-            dept_change_code: this.formData.dept_change_code
+            nameTH: this.editForm.name_th,
+            nameEN: this.editForm.name_en,
+            dept_full: this.editForm.dept_full,
+            dept_change_code: this.editForm.dept_change_code
           };
 
           const response = await axios.put(
@@ -302,15 +329,14 @@ export default {
           );
 
           if (response.data.status === 'success') {
-            // อัพเดตข้อมูลในตาราง
             const index = this.systems.findIndex(s => s.id === this.selectedSystem.id);
             if (index !== -1) {
               this.systems[index] = { 
                 ...this.systems[index], 
-                name_th: this.formData.name_th,
-                name_en: this.formData.name_en,
-                dept_full: this.formData.dept_full,
-                dept_change_code: this.formData.dept_change_code
+                name_th: this.editForm.name_th,
+                name_en: this.editForm.name_en,
+                dept_full: this.editForm.dept_full,
+                dept_change_code: this.editForm.dept_change_code
               };
             }
             this.toast.success('บันทึกการแก้ไขสำเร็จ');
@@ -324,7 +350,12 @@ export default {
         }
       } else {
         this.selectedSystem = system;
-        this.formData = { ...system };
+        this.editForm = { 
+          name_th: system.name_th,
+          name_en: system.name_en,
+          dept_full: system.dept_full,
+          dept_change_code: system.dept_change_code
+        };
         this.showEditModal = true;
       }
     },
@@ -362,10 +393,15 @@ export default {
     },
     async addSystem() {
       try {
-        const response = await axios.post('http://localhost:8088/api/system-record', this.newSystem);
+        const response = await axios.post('http://localhost:8088/api/system-record', {
+          nameTH: this.addForm.name_th,
+          nameEN: this.addForm.name_en,
+          dept_full: this.addForm.dept_full,
+          dept_change_code: this.addForm.dept_change_code
+        });
         this.systems.unshift(response.data);
         this.showAddModal = false;
-        this.newSystem = {
+        this.addForm = {
           name_th: '',
           name_en: '',
           dept_full: '',
@@ -381,6 +417,20 @@ export default {
       this.showAddModal = false;
       this.showEditModal = false;
       this.showDeleteModal = false;
+      // Reset forms
+      this.addForm = {
+        name_th: '',
+        name_en: '',
+        dept_full: '',
+        dept_change_code: ''
+      };
+      this.editForm = {
+        name_th: '',
+        name_en: '',
+        dept_full: '',
+        dept_change_code: ''
+      };
+      this.selectedSystem = null;
     },
     handleSubmit() {
       if (this.showAddModal) {
