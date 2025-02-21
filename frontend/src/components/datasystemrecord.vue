@@ -181,6 +181,9 @@ export default {
       
       let records = [...this.systemRecords];
       
+      // กรองระบบที่ถูกปิดใช้งาน
+      records = records.filter(record => record.is_active === 1);
+      
       // กรองตามคำค้นหา
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
