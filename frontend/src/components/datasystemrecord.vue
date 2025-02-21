@@ -232,6 +232,8 @@ export default {
           {
             nameTH: this.editNameTH,
             nameEN: this.editNameEN,
+            dept_full: this.getUserDepartment.dept_full,
+            dept_change_code: this.getUserDepartment.dept_change_code
           }
         );
         await this.fetchSystemRecords();
