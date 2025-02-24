@@ -1036,49 +1036,134 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
-    // ตรวจสอบสิทธิ์การลบ (ต้องเป็นของแผนกเดียวกัน)
+    // ตรวจสอบสิทธิ์การแก้ไข (ต้องเป็นของแผนกเดียวกัน)
     if (activity[0].dept_change_code !== userDept) {
       return res.status(403).json({
         status: 'error',
-        message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+        message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
       });
     }
 
-    // ลบไฟล์ที่เกี่ยวข้อง (ถ้ามี)
-    if (activity[0].file_paths) {
-      const filePaths = activity[0].file_paths.split(',');
-      filePaths.forEach(filePath => {
+    // จัดการไฟล์ที่ถูกลบ
+    let currentFilePaths = activity[0].file_paths ? activity[0].file_paths.split(',') : [];
+    let currentImagePaths = activity[0].image_paths ? activity[0].image_paths.split(',') : [];
+
+    // ลบไฟล์ที่ถูกเลือก
+    if (req.body.removedFiles) {
+      const filesToRemove = Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles];
+      filesToRemove.forEach(filePath => {
         const fullPath = path.join(__dirname, filePath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
+          console.log('Deleted file:', fullPath);
         }
+        currentFilePaths = currentFilePaths.filter(path => path !== filePath);
       });
     }
 
-    // ลบรูปภาพที่เกี่ยวข้อง (ถ้ามี)
-    if (activity[0].image_paths) {
-      const imagePaths = activity[0].image_paths.split(',');
-      imagePaths.forEach(imagePath => {
+    // ลบรูปภาพที่ถูกเลือก
+    if (req.body.removedImages) {
+      const imagesToRemove = Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages];
+      imagesToRemove.forEach(imagePath => {
         const fullPath = path.join(__dirname, imagePath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
+          console.log('Deleted image:', fullPath);
         }
+        currentImagePaths = currentImagePaths.filter(path => path !== imagePath);
       });
     }
 
-    // ลบข้อมูล
-    await conn.query('DELETE FROM activities WHERE id = ?', [id]);
+    // จัดการไฟล์ใหม่
+    if (req.files) {
+      // จัดการไฟล์เอกสาร
+      if (req.files['files[]']) {
+        const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
+        for (const file of files) {
+          const timestamp = Date.now();
+          const originalName = file.name;
+          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
+          const uploadPath = path.join(uploadsDir, safeName);
+          
+          try {
+            await file.mv(uploadPath);
+            currentFilePaths.push(`/uploads/${safeName}`);
+            console.log('Uploaded file:', safeName);
+          } catch (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            throw new Error('ไม่สามารถอัพโหลดไฟล์ได้');
+          }
+        }
+      }
+
+      // จัดการไฟล์รูปภาพ
+      if (req.files['images[]']) {
+        const images = Array.isArray(req.files['images[]']) ? req.files['images[]'] : [req.files['images[]']];
+        for (const image of images) {
+          const timestamp = Date.now();
+          const originalName = image.name;
+          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
+          const uploadPath = path.join(uploadsDir, safeName);
+          
+          try {
+            await image.mv(uploadPath);
+            currentImagePaths.push(`/uploads/${safeName}`);
+            console.log('Uploaded image:', safeName);
+          } catch (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            throw new Error('ไม่สามารถอัพโหลดรูปภาพได้');
+          }
+        }
+      }
+    }
+
+    // อัพเดตข้อมูลในฐานข้อมูล
+    const updateResult = await conn.query(
+      `UPDATE activities 
+       SET details = ?, 
+           system_id = ?,
+           important_info = ?,
+           file_paths = ?, 
+           image_paths = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        req.body.details.trim(),
+        req.body.system_id,
+        req.body.important_info,
+        currentFilePaths.length > 0 ? currentFilePaths.join(',') : null,
+        currentImagePaths.length > 0 ? currentImagePaths.join(',') : null,
+        id
+      ]
+    );
+
+    if (updateResult[0].affectedRows === 0) {
+      throw new Error('ไม่สามารถอัพเดตข้อมูลได้');
+    }
+
+    await conn.commit();
+
+    // ดึงข้อมูลที่อัพเดตแล้วเพื่อส่งกลับ
+    const [updatedActivity] = await conn.query(
+      `SELECT a.*, sd.important_info as important_info_display
+       FROM activities a
+       LEFT JOIN system_details sd ON sd.id = a.important_info
+       WHERE a.id = ?`,
+      [id]
+    );
 
     res.json({
       status: 'success',
-      message: 'ลบกิจกรรมสำเร็จ'
+      message: 'อัพเดตข้อมูลสำเร็จ',
+      activity: updatedActivity[0]
     });
 
   } catch (error) {
-    console.error('Error deleting activity:', error);
+    if (conn) await conn.rollback();
+    console.error('Error updating activity:', error);
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถลบกิจกรรมได้'
+      message: error.message || 'ไม่สามารถอัพเดตข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();

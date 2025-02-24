@@ -612,12 +612,26 @@ export default {
         );
 
         if (response.data.status === 'success') {
+          // อัพเดตข้อมูลในตัวแปร activities
+          const index = this.activities.findIndex(a => a.id === activity.id);
+          if (index !== -1) {
+            this.activities[index] = {
+              ...activity,
+              details: this.editedDetails.trim(),
+              file_paths: response.data.file_paths || activity.file_paths,
+              image_paths: response.data.image_paths || activity.image_paths,
+              updated_at: new Date().toISOString()
+            };
+          }
+
           this.toast.success("บันทึกการแก้ไขสำเร็จ");
           this.editingId = null;
           this.editedDetails = "";
           this.newFiles = [];
           this.newImages = [];
-          await this.fetchActivities(); // รีโหลดข้อมูลใหม่
+          
+          // รีเฟรชข้อมูลทั้งหมด
+          await this.fetchActivities();
         } else {
           throw new Error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
         }

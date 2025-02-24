@@ -225,9 +225,19 @@ router.put('/activities/:id', async (req, res) => {
     );
 
     await connection.commit();
+    
+    // ดึงข้อมูลที่อัพเดตแล้ว
+    const [updatedActivity] = await connection.query(
+      'SELECT file_paths, image_paths FROM activities WHERE id = ?',
+      [activityId]
+    );
+
     res.json({ 
-      status: 'success',
-      message: 'อัพเดตข้อมูลกิจกรรมสำเร็จ'
+      status: 'success', 
+      message: 'อัพเดตข้อมูลกิจกรรมสำเร็จ',
+      activityId: activityId,
+      file_paths: updatedActivity[0].file_paths,
+      image_paths: updatedActivity[0].image_paths
     });
 
   } catch (error) {
