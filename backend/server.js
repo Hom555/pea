@@ -1011,30 +1011,17 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
   let conn;
   try {
     const { id } = req.params;
-    const { details, systemId, importantInfoId, removedFiles, removedImages } = req.body;
     const userDept = req.user.dept_change_code;
 
-    if (!details?.trim() || !importantInfoId) {
+    if (!req.body.details?.trim()) {
       return res.status(400).json({
-        success: false,
-        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
+        status: 'error',
+        message: 'กรุณากรอกรายละเอียด'
       });
     }
 
     conn = await pool.getConnection();
-
-    // ตรวจสอบว่า importantInfoId มีอยู่จริงใน system_details
-    const [systemDetail] = await conn.query(
-      'SELECT id, important_info FROM system_details WHERE id = ? AND system_id = ?',
-      [importantInfoId, systemId]
-    );
-
-    if (systemDetail.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'ไม่พบข้อมูลหัวข้อที่เลือก'
-      });
-    }
+    await conn.beginTransaction();
 
     // ตรวจสอบว่ากิจกรรมนี้เป็นของแผนกผู้ใช้หรือไม่
     const [activity] = await conn.query(
@@ -1044,14 +1031,14 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
 
     if (activity.length === 0) {
       return res.status(404).json({
-        success: false,
+        status: 'error',
         message: 'ไม่พบข้อมูลกิจกรรม'
       });
     }
 
     if (activity[0].dept_change_code !== userDept) {
       return res.status(403).json({
-        success: false,
+        status: 'error',
         message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
       });
     }
@@ -1061,8 +1048,8 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
     let currentImagePaths = activity[0].image_paths ? activity[0].image_paths.split(',') : [];
 
     // ลบไฟล์ที่ถูกเลือก
-    if (removedFiles) {
-      const filesToRemove = Array.isArray(removedFiles) ? removedFiles : [removedFiles];
+    if (req.body.removedFiles) {
+      const filesToRemove = Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles];
       filesToRemove.forEach(filePath => {
         const fullPath = path.join(__dirname, filePath);
         if (fs.existsSync(fullPath)) {
@@ -1074,8 +1061,8 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
     }
 
     // ลบรูปภาพที่ถูกเลือก
-    if (removedImages) {
-      const imagesToRemove = Array.isArray(removedImages) ? removedImages : [removedImages];
+    if (req.body.removedImages) {
+      const imagesToRemove = Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages];
       imagesToRemove.forEach(imagePath => {
         const fullPath = path.join(__dirname, imagePath);
         if (fs.existsSync(fullPath)) {
@@ -1086,49 +1073,102 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
+    // จัดการไฟล์ใหม่
+    if (req.files) {
+      // จัดการไฟล์เอกสาร
+      if (req.files['files[]']) {
+        const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
+        for (const file of files) {
+          const timestamp = Date.now();
+          const originalName = file.name;
+          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
+          const uploadPath = path.join(uploadsDir, safeName);
+          
+          try {
+            await file.mv(uploadPath);
+            currentFilePaths.push(`/uploads/${safeName}`);
+            console.log('Uploaded file:', safeName);
+          } catch (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            throw new Error('ไม่สามารถอัพโหลดไฟล์ได้');
+          }
+        }
+      }
+
+      // จัดการไฟล์รูปภาพ
+      if (req.files['images[]']) {
+        const images = Array.isArray(req.files['images[]']) ? req.files['images[]'] : [req.files['images[]']];
+        for (const image of images) {
+          const timestamp = Date.now();
+          const originalName = image.name;
+          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
+          const uploadPath = path.join(uploadsDir, safeName);
+          
+          try {
+            await image.mv(uploadPath);
+            currentImagePaths.push(`/uploads/${safeName}`);
+            console.log('Uploaded image:', safeName);
+          } catch (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            throw new Error('ไม่สามารถอัพโหลดรูปภาพได้');
+          }
+        }
+      }
+    }
+
     // อัพเดตข้อมูลในฐานข้อมูล
-    await conn.query(
+    const updateResult = await conn.query(
       `UPDATE activities 
        SET details = ?, 
+           system_id = ?,
            important_info = ?,
+           dept_change_code = ?,
+           dept_full = ?,
+           created_by = ?,
            file_paths = ?, 
            image_paths = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
-        details.trim(),
-        importantInfoId,
-        currentFilePaths.join(',') || null,
-        currentImagePaths.join(',') || null,
+        req.body.details.trim(),
+        req.body.system_id,
+        req.body.important_info,
+        req.body.dept_change_code,
+        req.body.dept_full,
+        req.body.created_by,
+        currentFilePaths.length > 0 ? currentFilePaths.join(',') : null,
+        currentImagePaths.length > 0 ? currentImagePaths.join(',') : null,
         id
       ]
     );
 
+    if (updateResult[0].affectedRows === 0) {
+      throw new Error('ไม่สามารถอัพเดตข้อมูลได้');
+    }
+
+    await conn.commit();
+
     // ดึงข้อมูลที่อัพเดตแล้วเพื่อส่งกลับ
     const [updatedActivity] = await conn.query(
-      `SELECT 
-        a.*,
-        sd.important_info as system_important_info,
-        sd.reference_no,
-        sd.additional_info as system_additional_info
+      `SELECT a.*, sd.important_info as important_info_display
        FROM activities a
-       LEFT JOIN system_details sd ON a.system_id = sd.system_id AND a.important_info = sd.id
+       LEFT JOIN system_details sd ON sd.id = a.important_info
        WHERE a.id = ?`,
       [id]
     );
 
     res.json({
-      success: true,
+      status: 'success',
       message: 'อัพเดตข้อมูลสำเร็จ',
       activity: updatedActivity[0]
     });
 
   } catch (error) {
+    if (conn) await conn.rollback();
     console.error('Error updating activity:', error);
     res.status(500).json({
-      success: false,
-      message: 'ไม่สามารถอัพเดตข้อมูลได้',
-      error: error.message
+      status: 'error',
+      message: error.message || 'ไม่สามารถอัพเดตข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();

@@ -561,31 +561,29 @@ export default {
         const formData = new FormData();
         formData.append("details", this.editedDetails.trim());
         formData.append("system_id", activity.system_id);
-        formData.append("important_info", activity.important_info_id);
+        formData.append("important_info", activity.important_info_original || activity.important_info);
         formData.append("dept_change_code", deptInfo.dept_change_code);
         formData.append("dept_full", deptInfo.dept_full);
         formData.append("created_by", JSON.parse(userData).emp_id);
 
         // เพิ่มไฟล์ใหม่
         if (this.newFiles.length > 0) {
-          for (const file of this.newFiles) {
+          this.newFiles.forEach(file => {
             if (file.size > 10 * 1024 * 1024) { // 10MB limit
-              this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
-              return;
+              throw new Error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
             }
             formData.append("files[]", file);
-          }
+          });
         }
 
         // เพิ่มรูปภาพใหม่
         if (this.newImages.length > 0) {
-          for (const image of this.newImages) {
+          this.newImages.forEach(image => {
             if (image.size > 5 * 1024 * 1024) { // 5MB limit
-              this.toast.error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
-              return;
+              throw new Error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
             }
             formData.append("images[]", image);
-          }
+          });
         }
 
         // ส่งข้อมูลไฟล์ที่ถูกลบ
@@ -615,7 +613,10 @@ export default {
 
         if (response.data.status === 'success') {
           this.toast.success("บันทึกการแก้ไขสำเร็จ");
-          this.closeEdit();
+          this.editingId = null;
+          this.editedDetails = "";
+          this.newFiles = [];
+          this.newImages = [];
           await this.fetchActivities(); // รีโหลดข้อมูลใหม่
         } else {
           throw new Error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
@@ -625,7 +626,7 @@ export default {
         if (error.code === 'ECONNABORTED') {
           this.toast.error("การเชื่อมต่อกับเซิร์ฟเวอร์หมดเวลา กรุณาลองใหม่อีกครั้ง");
         } else {
-          this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
+          this.toast.error(error.response?.data?.message || error.message || "ไม่สามารถบันทึกการแก้ไขได้");
         }
       }
     },
