@@ -407,14 +407,16 @@ export default {
       if (!date) return '';
       try {
         const d = new Date(date);
-        const year = d.getFullYear() + 543; // แปลงเป็น พ.ศ.
-        const month = d.getMonth() + 1;
-        const day = d.getDate();
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1);
+        const year = d.getFullYear() + 543;
         const hours = d.getHours().toString().padStart(2, '0');
         const minutes = d.getMinutes().toString().padStart(2, '0');
-        return `${day}/${month}/${year} ${hours}:${minutes} น.`;
+        const seconds = d.getSeconds().toString().padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
       } catch (error) {
-        return 'Invalid Date';
+        console.error("Error formatting date:", error);
+        return '';
       }
     },
 

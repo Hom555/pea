@@ -89,17 +89,16 @@
           <thead>
             <tr>
               <th>ลำดับ</th>
-              <th>วันที่</th>
               <th>รายละเอียด</th>
               <th>เอกสารแนบ</th>
               <th>รูปภาพ</th>
+              <th>วันที่</th>
               <th class="text-center"></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(activity, index) in activities" :key="activity.id">
               <td class="text-center">{{ index + 1 }}</td>
-              <td>{{ formatDate(activity.created_at) }}</td>
               <td>
                 <div v-if="editingId === activity.id">
                   <textarea
@@ -249,6 +248,7 @@
                   <span v-else class="no-images">-</span>
                 </div>
               </td>
+              <td>{{ formatDate(activity.created_at) }}</td>
               <td class="text-center action-buttons">
                 <button
                   class="btn-edit"
@@ -431,14 +431,19 @@ export default {
     },
     formatDate(date) {
       if (!date) return '';
-      const d = new Date(date);
-      return d.toLocaleString('th-TH', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      try {
+        const d = new Date(date);
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1);
+        const year = d.getFullYear() + 543;
+        const hours = d.getHours().toString().padStart(2, '0');
+        const minutes = d.getMinutes().toString().padStart(2, '0');
+        const seconds = d.getSeconds().toString().padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+      } catch (error) {
+        console.error("Error formatting date:", error);
+        return '';
+      }
     },
     getFileName(filePath) {
       if (!filePath) return "";

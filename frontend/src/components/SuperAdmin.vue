@@ -126,7 +126,7 @@
                 <tr>
                   <th class="text-center">#</th>
                   <th>ชื่อระบบ</th>
-                  <th>กอง/แผนก</th>
+                  <th>แผนก</th>
                   <th>วันที่สร้าง</th>
                   <th class="text-center">จัดการ</th>
                 </tr>
