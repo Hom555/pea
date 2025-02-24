@@ -1851,6 +1851,50 @@ app.delete('/api/Superactivities/:id', async (req, res) => {
   }
 });
 
+// ใช้ใน: SuperAdminActivities.vue - สำหรับดึงข้อมูลระบบตามแผนก
+app.get('/api/systems-by-department', getUserData, async (req, res) => {
+  let conn;
+  try {
+    const { dept_change_code } = req.query;
+    conn = await pool.getConnection();
+    
+    let query = `
+      SELECT 
+        id,
+        name_th,
+        name_en,
+        dept_change_code,
+        dept_full,
+        created_at,
+        updated_at,
+        is_active
+      FROM system_master
+      WHERE 1=1
+    `;
+
+    const params = [];
+    
+    if (dept_change_code) {
+      query += ` AND dept_change_code = ?`;
+      params.push(dept_change_code);
+    }
+
+    query += ` ORDER BY name_th ASC`;
+
+    const [systems] = await conn.query(query, params);
+    res.json(systems);
+
+  } catch (error) {
+    console.error('Error fetching systems by department:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลระบบได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // Routes - ย้ายมาไว้หลัง middleware ทั้งหมด
 app.use('/api', activitiesRouter);
 

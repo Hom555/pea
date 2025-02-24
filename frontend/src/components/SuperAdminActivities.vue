@@ -343,8 +343,24 @@ export default {
   methods: {
     async fetchSystems() {
       try {
-        const response = await axios.get('http://localhost:8088/api/system-records');
+        let response;
+        if (this.selectedDepartment) {
+          // ดึงข้อมูลระบบตามแผนกที่เลือก
+          const deptCode = this.activities.find(act => act.dept_full === this.selectedDepartment)?.dept_change_code;
+          response = await axios.get('http://localhost:8088/api/systems-by-department', {
+            params: {
+              dept_change_code: deptCode
+            }
+          });
+        } else {
+          // ถ้าไม่ได้เลือกแผนก ดึงข้อมูลระบบทั้งหมด
+          response = await axios.get('http://localhost:8088/api/all-system-records');
+        }
         this.systems = response.data;
+        
+        // รีเซ็ตการเลือกระบบเมื่อเปลี่ยนแผนก
+        this.selectedSystem = '';
+        
         console.log('Fetched systems:', this.systems);
       } catch (error) {
         console.error('Error fetching systems:', error);
@@ -543,6 +559,13 @@ export default {
   created() {
     this.fetchSystems();
     this.fetchActivities();
+  },
+
+  watch: {
+    selectedDepartment: {
+      handler: 'fetchSystems',
+      immediate: false
+    }
   }
 }
 </script>
