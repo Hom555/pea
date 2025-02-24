@@ -150,10 +150,9 @@
           <div class="form-group">
             <label>ข้อมูลสำคัญ:</label>
             <select v-model="editingActivity.important_info" class="form-control">
-              <option value="152">152</option>
-              <option value="45">45</option>
-              <option value="กิจกรรมที่ 1">กิจกรรมที่ 1</option>
-              <option value="กิจกรรมที่ 2">กิจกรรมที่ 2</option>
+              <option v-for="info in importantInfoList" :key="info.id" :value="info.important_info">
+                {{ info.important_info }}
+              </option>
             </select>
           </div>
           <div class="form-group">
@@ -297,7 +296,8 @@ export default {
       selectedImage: null,
       departments: [],
       selectedDepartment: '',
-      showCreatorModal: false
+      showCreatorModal: false,
+      importantInfoList: []
     }
   },
 
@@ -419,7 +419,7 @@ export default {
     },
 
     editActivity(activity) {
-      this.editingActivity = { ...activity };
+      this.startEdit(activity);
     },
 
     closeEditModal() {
@@ -518,6 +518,25 @@ export default {
     closeCreatorModal() {
       this.showCreatorModal = false;
       this.selectedActivity = null;
+    },
+
+    async startEdit(activity) {
+      this.editingId = activity.id;
+      this.editedDetails = activity.details;
+      this.editingActivity = { ...activity };
+      
+      // ดึงข้อมูลสำคัญจาก API
+      try {
+        const response = await axios.get(`http://localhost:8088/api/system-details/${activity.system_id}`);
+        this.importantInfoList = response.data;
+      } catch (error) {
+        console.error('Error fetching important info:', error);
+        this.toast.error('ไม่สามารถดึงข้อมูลสำคัญได้');
+      }
+
+      this.newFiles = [];
+      this.newImages = [];
+      this.toast.info("เริ่มแก้ไขข้อมูล");
     }
   },
 
