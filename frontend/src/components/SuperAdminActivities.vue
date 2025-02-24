@@ -428,9 +428,13 @@ export default {
 
     async saveActivity() {
       try {
-        await axios.put(`http://localhost:8088/api/activities/${this.editingActivity.id}`, {
-          important_info: this.editingActivity.important_info,
+        await axios.put(`http://localhost:8088/api/Superactivities/${this.editingActivity.id}`, {
           details: this.editingActivity.details,
+          system_id: this.editingActivity.system_id,
+          important_info: this.editingActivity.important_info,
+          dept_change_code: this.editingActivity.dept_change_code,
+          dept_full: this.editingActivity.dept_full,
+          created_by: this.editingActivity.created_by,
           updated_by: this.editingActivity.emp_id
         });
         
@@ -450,7 +454,9 @@ export default {
       }
 
       try {
-        const response = await axios.delete(`http://localhost:8088/api/activities/${activity.id}`);
+        const response = await axios.delete(
+          `http://localhost:8088/api/Superactivities/${activity.id}`
+        );
         
         if (response.data.status === 'success') {
           // ลบข้อมูลออกจาก array

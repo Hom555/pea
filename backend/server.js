@@ -652,7 +652,7 @@ app.post('/api/system-details', getUserData, async (req, res) => {
   }
 });
 
-// ใช้ใน: Dataactivities.vue, system-activities.vue
+// ใช้ใน: Dataactivities.vue
 app.get('/api/system-details/:systemId', async (req, res) => {
   let conn;
   try {
@@ -743,7 +743,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
     // จัดการกับไฟล์ใหม่
     if (req.files && req.files.files) {
-      const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+      const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
       
       // สร้างโฟลเดอร์ถ้ายังไม่มี
       const uploadDir = path.join(__dirname, 'uploads');
@@ -1036,10 +1036,81 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
+    // ตรวจสอบสิทธิ์การลบ (ต้องเป็นของแผนกเดียวกัน)
     if (activity[0].dept_change_code !== userDept) {
       return res.status(403).json({
         status: 'error',
-        message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
+        message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+      });
+    }
+
+    // ลบไฟล์ที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].file_paths) {
+      const filePaths = activity[0].file_paths.split(',');
+      filePaths.forEach(filePath => {
+        const fullPath = path.join(__dirname, filePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบรูปภาพที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].image_paths) {
+      const imagePaths = activity[0].image_paths.split(',');
+      imagePaths.forEach(imagePath => {
+        const fullPath = path.join(__dirname, imagePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบข้อมูล
+    await conn.query('DELETE FROM activities WHERE id = ?', [id]);
+
+    res.json({
+      status: 'success',
+      message: 'ลบกิจกรรมสำเร็จ'
+    });
+
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถลบกิจกรรมได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// เพิ่ม endpoint สำหรับ Super Admin แก้ไขกิจกรรม
+app.put('/api/Superactivities/:id', async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+
+    if (!req.body.details?.trim()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'กรุณากรอกรายละเอียด'
+      });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // ตรวจสอบว่ากิจกรรมนี้มีอยู่หรือไม่
+    const [activity] = await conn.query(
+      'SELECT file_paths, image_paths FROM activities WHERE id = ?',
+      [id]
+    );
+
+    if (activity.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลกิจกรรม'
       });
     }
 
@@ -1674,6 +1745,68 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
       return res.status(403).json({
         status: 'error',
         message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+      });
+    }
+
+    // ลบไฟล์ที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].file_paths) {
+      const filePaths = activity[0].file_paths.split(',');
+      filePaths.forEach(filePath => {
+        const fullPath = path.join(__dirname, filePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบรูปภาพที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].image_paths) {
+      const imagePaths = activity[0].image_paths.split(',');
+      imagePaths.forEach(imagePath => {
+        const fullPath = path.join(__dirname, imagePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      });
+    }
+
+    // ลบข้อมูล
+    await conn.query('DELETE FROM activities WHERE id = ?', [id]);
+
+    res.json({
+      status: 'success',
+      message: 'ลบกิจกรรมสำเร็จ'
+    });
+
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถลบกิจกรรมได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// เพิ่ม endpoint สำหรับ Super Admin ลบกิจกรรม
+app.delete('/api/Superactivities/:id', async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+
+    conn = await pool.getConnection();
+
+    // ตรวจสอบว่ากิจกรรมนี้มีอยู่หรือไม่
+    const [activity] = await conn.query(
+      'SELECT file_paths, image_paths FROM activities WHERE id = ?',
+      [id]
+    );
+
+    if (activity.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลกิจกรรม'
       });
     }
 
