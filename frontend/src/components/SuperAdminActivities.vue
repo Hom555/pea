@@ -149,11 +149,11 @@
         <div class="modal-body">
           <div class="form-group">
             <label>ข้อมูลสำคัญ:</label>
-            <select v-model="editingActivity.important_info" class="form-control">
-              <option v-for="info in importantInfoList" :key="info.id" :value="info.important_info">
-                {{ info.important_info }}
-              </option>
-            </select>
+            <div class="important-info-display">
+              <span :class="getImportanceClass(editingActivity.important_info)">
+                {{ editingActivity.important_info }}
+              </span>
+            </div>
           </div>
           <div class="form-group">
             <label>รายละเอียด:</label>
@@ -1173,6 +1173,21 @@ td {
   border-color: #4f46e5;
   box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
   outline: none;
+}
+
+.important-info-display {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.important-info-display span {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 textarea.form-control {
