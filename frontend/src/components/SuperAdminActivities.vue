@@ -446,23 +446,89 @@ export default {
 
     async saveActivity() {
       try {
-        await axios.put(`http://localhost:8088/api/Superactivities/${this.editingActivity.id}`, {
-          details: this.editingActivity.details,
-          system_id: this.editingActivity.system_id,
-          important_info: this.editingActivity.important_info,
-          dept_change_code: this.editingActivity.dept_change_code,
-          dept_full: this.editingActivity.dept_full,
-          created_by: this.editingActivity.created_by,
-          updated_by: this.editingActivity.emp_id
-        });
+        const formData = new FormData();
+        formData.append('details', this.editingActivity.details);
+        formData.append('system_id', this.editingActivity.system_id);
+        formData.append('important_info_id', this.editingActivity.important_info_id);
+        formData.append('dept_change_code', this.editingActivity.dept_change_code);
+        formData.append('dept_full', this.editingActivity.dept_full);
+        formData.append('created_by', this.editingActivity.created_by);
+        formData.append('updated_by', this.editingActivity.emp_id);
+
+        if (this.newFiles.length > 0) {
+          this.newFiles.forEach(file => {
+            if (file.size > 10 * 1024 * 1024) {
+              throw new Error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+            }
+            formData.append('files[]', file);
+          });
+        }
+
+        if (this.newImages.length > 0) {
+          this.newImages.forEach(image => {
+            if (image.size > 5 * 1024 * 1024) {
+              throw new Error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
+            }
+            formData.append('images[]', image);
+          });
+        }
+
+        if (this.editingActivity.deletedFiles && this.editingActivity.deletedFiles.length > 0) {
+          this.editingActivity.deletedFiles.forEach(file => {
+            formData.append('removedFiles[]', file);
+          });
+        }
+
+        if (this.editingActivity.deletedImages && this.editingActivity.deletedImages.length > 0) {
+          this.editingActivity.deletedImages.forEach(image => {
+            formData.append('removedImages[]', image);
+          });
+        }
+
+        const response = await axios.put(
+          `http://localhost:8088/api/Superactivities/${this.editingActivity.id}`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            timeout: 30000
+          }
+        );
         
-        this.toast.success('บันทึกการแก้ไขสำเร็จ');
-        await this.fetchActivities();
-        this.closeEditModal();
+        if (response.data.status === 'success') {
+          const index = this.activities.findIndex(a => a.id === this.editingActivity.id);
+          if (index !== -1) {
+            this.activities[index] = {
+              ...this.activities[index],
+              details: this.editingActivity.details,
+              file_paths: response.data.file_paths || this.activities[index].file_paths,
+              image_paths: response.data.image_paths || this.activities[index].image_paths,
+              updated_at: new Date().toISOString()
+            };
+          }
+
+          this.toast.success('บันทึกการแก้ไขสำเร็จ');
+          this.closeEditModal();
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถบันทึกการแก้ไขได้');
+        }
       } catch (error) {
         console.error('Error saving activity:', error);
-        this.toast.error(error.response?.data?.message || 'ไม่สามารถบันทึกการแก้ไขได้');
+        this.toast.error(error.response?.data?.message || error.message || 'ไม่สามารถบันทึกการแก้ไขได้');
       }
+    },
+
+    startEdit(activity) {
+      this.editingActivity = { 
+        ...activity,
+        important_info_id: activity.important_info_id,
+        deletedFiles: [],
+        deletedImages: []
+      };
+      this.newFiles = [];
+      this.newImages = [];
+      this.toast.info("เริ่มแก้ไขข้อมูล");
     },
 
     async deleteActivity(activity) {
@@ -536,25 +602,6 @@ export default {
     closeCreatorModal() {
       this.showCreatorModal = false;
       this.selectedActivity = null;
-    },
-
-    async startEdit(activity) {
-      this.editingId = activity.id;
-      this.editedDetails = activity.details;
-      this.editingActivity = { ...activity };
-      
-      // ดึงข้อมูลสำคัญจาก API
-      try {
-        const response = await axios.get(`http://localhost:8088/api/system-details/${activity.system_id}`);
-        this.importantInfoList = response.data;
-      } catch (error) {
-        console.error('Error fetching important info:', error);
-        this.toast.error('ไม่สามารถดึงข้อมูลสำคัญได้');
-      }
-
-      this.newFiles = [];
-      this.newImages = [];
-      this.toast.info("เริ่มแก้ไขข้อมูล");
     }
   },
 
