@@ -255,34 +255,65 @@ export default {
     },
     async saveChanges(detail) {
       try {
+        // Validate input
+        if (!detail.editedInfo.important_info?.trim()) {
+          this.toast.error("กรุณากรอกข้อมูลสำคัญ");
+          return;
+        }
+
+        if (!detail.editedInfo.reference_no?.trim()) {
+          this.toast.error("กรุณากรอกเลขที่อ้างอิง");
+          return;
+        }
+
         const formData = new FormData();
         formData.append("systemId", this.selectedSystemId);
         formData.append("importantInfo", detail.editedInfo.important_info);
         formData.append("referenceNo", detail.editedInfo.reference_no);
         formData.append("additionalInfo", detail.editedInfo.additional_info || "");
-
+        
+        // Handle file upload - only keep the latest file
         if (detail.newFiles && detail.newFiles.length > 0) {
-          detail.newFiles.forEach((file) => {
-            formData.append("files", file);
-          });
+          const file = detail.newFiles[0]; // Take only the first file
+          if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+            return;
+          }
+          formData.append("file", file);
         }
 
-        await axios.put(
+        // Send update request
+        const response = await axios.put(
           `http://localhost:8088/api/system-details/${detail.id}`,
           formData,
           {
-            headers: { "Content-Type": "multipart/form-data" },
+            headers: { 
+              "Content-Type": "multipart/form-data"
+            },
+            timeout: 30000 // 30 seconds timeout
           }
         );
 
-        await this.fetchSystemDetails();
-        detail.editing = false;
-        detail.newFiles = [];
-
-        this.toast.success("บันทึกการแก้ไขสำเร็จ");
+        if (response.data.success) {
+          // Update local state
+          detail.important_info = detail.editedInfo.important_info;
+          detail.reference_no = detail.editedInfo.reference_no;
+          detail.additional_info = detail.editedInfo.additional_info;
+          detail.file_path = response.data.file_path;
+          
+          detail.editing = false;
+          detail.newFiles = [];
+          
+          this.toast.success("บันทึกการแก้ไขสำเร็จ");
+          
+          // Refresh data
+          await this.fetchSystemDetails();
+        } else {
+          throw new Error(response.data.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        }
       } catch (error) {
-        console.error("Error saving changes:", error.response?.data || error.message);
-        this.toast.error("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        console.error("Error saving changes:", error);
+        this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
       }
     },
     cancelEditing(detail) {
@@ -372,45 +403,12 @@ export default {
       }
 
       try {
-        const filePaths = detail.file_path.split(',');
-        const fileToDelete = filePaths[fileIndex];
-        
-        // Remove the file from the array
-        filePaths.splice(fileIndex, 1);
-        
-        // Update the file_path string
-        const updatedFilePath = filePaths.join(',');
-        
-        // Prepare the form data with all necessary fields
-        const formData = new FormData();
-        formData.append('importantInfo', detail.important_info);
-        formData.append('referenceNo', detail.reference_no);
-        formData.append('additionalInfo', detail.additional_info || '');
-        formData.append('deletedFile', fileToDelete);
-        formData.append('file_path', updatedFilePath || '');
-
-        // Send the update request
-        const response = await axios.put(
-          `http://localhost:8088/api/system-details/${detail.id}`,
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          }
-        );
-
-        if (response.status === 200) {
-          // Update the local state
-          detail.file_path = updatedFilePath;
-          this.toast.success('ลบไฟล์เรียบร้อยแล้ว');
-          
-          // อัพเดตข้อมูลในหน้าจอ
-          await this.fetchSystemDetails();
-        }
+        // Clear the file path
+        detail.file_path = '';
+        this.toast.info("ไฟล์จะถูกลบเมื่อกดบันทึก");
       } catch (error) {
         console.error('Error deleting file:', error);
-        this.toast.error('ไม่สามารถลบไฟล์ได้: ' + (error.response?.data?.message || error.message));
+        this.toast.error('ไม่สามารถลบไฟล์ได้');
       }
     }
   },

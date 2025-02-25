@@ -169,28 +169,7 @@ router.put('/activities/:id', async (req, res) => {
       }
     }
 
-    // ลบไฟล์เก่า
-    if (req.body['removedFiles[]']) {
-      const removedFiles = Array.isArray(req.body['removedFiles[]']) ? req.body['removedFiles[]'] : [req.body['removedFiles[]']];
-      for (const filePath of removedFiles) {
-        const fullPath = path.join(__dirname, '..', filePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
-        }
-      }
-    }
-
-    if (req.body['removedImages[]']) {
-      const removedImages = Array.isArray(req.body['removedImages[]']) ? req.body['removedImages[]'] : [req.body['removedImages[]']];
-      for (const imagePath of removedImages) {
-        const fullPath = path.join(__dirname, '..', imagePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
-        }
-      }
-    }
-
-    // อัพเดตข้อมูลไฟล์ในฐานข้อมูล
+    // ดึงข้อมูลไฟล์ปัจจุบัน
     const [currentActivity] = await connection.query(
       'SELECT file_paths, image_paths FROM activities WHERE id = ?',
       [activityId]
@@ -199,23 +178,70 @@ router.put('/activities/:id', async (req, res) => {
     let updatedFilePaths = [];
     let updatedImagePaths = [];
 
-    // รวมไฟล์เก่าที่ไม่ได้ถูกลบกับไฟล์ใหม่
+    // จัดการไฟล์ที่ถูกลบ
     if (currentActivity[0].file_paths) {
       const currentFiles = currentActivity[0].file_paths.split(',');
-      updatedFilePaths = currentFiles.filter(path => !req.body['removedFiles[]']?.includes(path));
-    }
-    updatedFilePaths = [...updatedFilePaths, ...filePaths];
+      const removedFiles = req.body.removedFiles ? 
+        (Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles]) : 
+        [];
 
+      console.log('Processing file deletion:', {
+        currentFiles,
+        removedFiles
+      });
+
+      // ลบไฟล์ที่ถูกเลือก
+      for (const filePath of removedFiles) {
+        const fullPath = path.join(__dirname, '..', filePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+          console.log('Deleted file:', fullPath);
+        }
+      }
+
+      // กรองไฟล์ที่ไม่ได้ถูกลบ
+      updatedFilePaths = currentFiles.filter(path => !removedFiles.includes(path));
+    }
+
+    // จัดการรูปภาพที่ถูกลบ
     if (currentActivity[0].image_paths) {
       const currentImages = currentActivity[0].image_paths.split(',');
-      updatedImagePaths = currentImages.filter(path => !req.body['removedImages[]']?.includes(path));
+      const removedImages = req.body.removedImages ? 
+        (Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages]) : 
+        [];
+
+      console.log('Processing image deletion:', {
+        currentImages,
+        removedImages
+      });
+
+      // ลบรูปภาพที่ถูกเลือก
+      for (const imagePath of removedImages) {
+        const fullPath = path.join(__dirname, '..', imagePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+          console.log('Deleted image:', fullPath);
+        }
+      }
+
+      // กรองรูปภาพที่ไม่ได้ถูกลบ
+      updatedImagePaths = currentImages.filter(path => !removedImages.includes(path));
     }
+
+    // เพิ่มไฟล์และรูปภาพใหม่
+    updatedFilePaths = [...updatedFilePaths, ...filePaths];
     updatedImagePaths = [...updatedImagePaths, ...imagePaths];
+
+    console.log('Final paths:', {
+      updatedFilePaths,
+      updatedImagePaths
+    });
 
     // อัพเดตพาธของไฟล์ในฐานข้อมูล
     await connection.query(
       `UPDATE activities 
-       SET file_paths = ?, image_paths = ?
+       SET file_paths = ?, 
+           image_paths = ?
        WHERE id = ?`,
       [
         updatedFilePaths.length > 0 ? updatedFilePaths.join(',') : null,

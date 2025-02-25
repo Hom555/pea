@@ -592,18 +592,26 @@ export default {
         }
 
         // ส่งข้อมูลไฟล์ที่ถูกลบ
-        if (activity.deletedFiles && activity.deletedFiles.length > 0) {
+        if (activity.deletedFiles?.length > 0) {
           activity.deletedFiles.forEach(file => {
-            formData.append("removedFiles[]", file);
+            formData.append("removedFiles", file);
           });
         }
 
         // ส่งข้อมูลรูปภาพที่ถูกลบ
-        if (activity.deletedImages && activity.deletedImages.length > 0) {
+        if (activity.deletedImages?.length > 0) {
           activity.deletedImages.forEach(image => {
-            formData.append("removedImages[]", image);
+            formData.append("removedImages", image);
           });
         }
+
+        console.log('Sending data:', {
+          details: this.editedDetails,
+          newFiles: this.newFiles,
+          newImages: this.newImages,
+          deletedFiles: activity.deletedFiles,
+          deletedImages: activity.deletedImages
+        });
 
         const response = await axios.put(
           `http://localhost:8088/api/activities/${activity.id}`,
@@ -623,9 +631,11 @@ export default {
             this.activities[index] = {
               ...activity,
               details: this.editedDetails.trim(),
-              file_paths: response.data.file_paths || activity.file_paths,
-              image_paths: response.data.image_paths || activity.image_paths,
-              updated_at: new Date().toISOString()
+              file_paths: response.data.file_paths || null,
+              image_paths: response.data.image_paths || null,
+              updated_at: new Date().toISOString(),
+              deletedFiles: [], // รีเซ็ตรายการไฟล์ที่ถูกลบ
+              deletedImages: [] // รีเซ็ตรายการรูปภาพที่ถูกลบ
             };
           }
 
@@ -676,13 +686,15 @@ export default {
       if (!activity.deletedFiles) {
         activity.deletedFiles = [];
       }
-      activity.deletedFiles.push(deletedFile);
+      // ตัด http://localhost:8088 ออกจาก path
+      const cleanPath = deletedFile.replace('http://localhost:8088', '');
+      activity.deletedFiles.push(cleanPath);
       
       // ลบไฟล์ออกจาก array
       filePaths.splice(fileIndex, 1);
-      activity.file_paths = filePaths.join(',');
+      activity.file_paths = filePaths.length > 0 ? filePaths.join(',') : null;
       
-      this.toast.info("ลบไฟล์เรียบร้อย");
+      this.toast.info("ไฟล์จะถูกลบเมื่อกดบันทึก");
     },
     deleteImage(activity, imageIndex) {
       if (!confirm('คุณต้องการลบรูปภาพนี้ใช่หรือไม่?')) {
@@ -696,13 +708,15 @@ export default {
       if (!activity.deletedImages) {
         activity.deletedImages = [];
       }
-      activity.deletedImages.push(deletedImage);
+      // ตัด http://localhost:8088 ออกจาก path
+      const cleanPath = deletedImage.replace('http://localhost:8088', '');
+      activity.deletedImages.push(cleanPath);
       
       // ลบรูปภาพออกจาก array
       imagePaths.splice(imageIndex, 1);
-      activity.image_paths = imagePaths.join(',');
+      activity.image_paths = imagePaths.length > 0 ? imagePaths.join(',') : null;
       
-      this.toast.info("ลบรูปภาพเรียบร้อย");
+      this.toast.info("รูปภาพจะถูกลบเมื่อกดบันทึก");
     },
     removeNewFile(index) {
       this.newFiles.splice(index, 1);
