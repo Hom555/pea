@@ -35,7 +35,7 @@
             <select v-model="selectedSystem">
               <option value="">ทุกระบบ</option>
               <option v-for="system in systems" :key="system.id" :value="system.id">
-                {{ system.name_th }}
+                {{ system.name_th }} ({{ system.name_en }})
               </option>
             </select>
           </div>
