@@ -1272,26 +1272,16 @@ app.put('/api/Superactivities/:id', async (req, res) => {
       }
     }
 
-    // อัพเดตข้อมูลในฐานข้อมูล
+    // อัพเดตข้อมูลในฐานข้อมูล - เฉพาะ details และ file paths
     const updateResult = await conn.query(
       `UPDATE activities 
        SET details = ?, 
-           system_id = ?,
-           important_info = ?,
-           dept_change_code = ?,
-           dept_full = ?,
-           created_by = ?,
            file_paths = ?, 
            image_paths = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         req.body.details.trim(),
-        req.body.system_id,
-        req.body.important_info,
-        req.body.dept_change_code,
-        req.body.dept_full,
-        req.body.created_by,
         currentFilePaths.length > 0 ? currentFilePaths.join(',') : null,
         currentImagePaths.length > 0 ? currentImagePaths.join(',') : null,
         id

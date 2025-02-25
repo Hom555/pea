@@ -164,6 +164,49 @@
               placeholder="กรอกรายละเอียด..."
             ></textarea>
           </div>
+          <div class="form-group">
+            <label>ไฟล์แนบ:</label>
+            <div class="file-upload">
+              <input type="file" multiple @change="handleFileChange">
+              <div class="file-list">
+                <div v-for="(file, index) in editingActivity.file_paths ? getFiles(editingActivity.file_paths) : []" :key="index" class="file-item">
+                  <a :href="file.path" target="_blank" class="file-link">
+                    <i :class="getFileIcon(file.path)"></i>
+                    {{ file.name }}
+                  </a>
+                  <button @click="deleteFile(file.path)" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+                <div v-for="(file, index) in newFiles" :key="index" class="file-item">
+                  <span>{{ file.name }}</span>
+                  <button @click="removeNewFile(index)" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>รูปภาพ:</label>
+            <div class="image-upload">
+              <input type="file" multiple @change="handleImageChange">
+              <div class="image-list">
+                <div v-for="(image, index) in editingActivity.image_paths ? getFiles(editingActivity.image_paths) : []" :key="index" class="image-item">
+                  <img :src="image.path" :alt="image.name" @click="showFullImage(image.path)">
+                  <button @click="deleteImage(image.path)" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+                <div v-for="(image, index) in newImages" :key="index" class="image-item">
+                  <img :src="getImagePreview(image)" :alt="image.name" @click="showFullImage(getImagePreview(image))">
+                  <button @click="removeNewImage(index)" class="btn-delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button @click="closeEditModal" class="btn-cancel">
@@ -297,7 +340,9 @@ export default {
       departments: [],
       selectedDepartment: '',
       showCreatorModal: false,
-      importantInfoList: []
+      importantInfoList: [],
+      newFiles: [],
+      newImages: []
     }
   },
 
@@ -446,39 +491,42 @@ export default {
 
     async saveActivity() {
       try {
-        const formData = new FormData();
-        formData.append('details', this.editingActivity.details);
-        formData.append('system_id', this.editingActivity.system_id);
-        formData.append('important_info_id', this.editingActivity.important_info_id);
-        formData.append('dept_change_code', this.editingActivity.dept_change_code);
-        formData.append('dept_full', this.editingActivity.dept_full);
-        formData.append('created_by', this.editingActivity.created_by);
-        formData.append('updated_by', this.editingActivity.emp_id);
+        if (!this.editingActivity.details.trim()) {
+          this.toast.error('กรุณากรอกรายละเอียด');
+          return;
+        }
 
+        const formData = new FormData();
+        formData.append('details', this.editingActivity.details.trim());
+
+        // เพิ่มไฟล์ใหม่
         if (this.newFiles.length > 0) {
           this.newFiles.forEach(file => {
-            if (file.size > 10 * 1024 * 1024) {
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
               throw new Error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
             }
             formData.append('files[]', file);
           });
         }
 
+        // เพิ่มรูปภาพใหม่
         if (this.newImages.length > 0) {
           this.newImages.forEach(image => {
-            if (image.size > 5 * 1024 * 1024) {
+            if (image.size > 5 * 1024 * 1024) { // 5MB limit
               throw new Error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
             }
             formData.append('images[]', image);
           });
         }
 
+        // ส่งข้อมูลไฟล์ที่ถูกลบ
         if (this.editingActivity.deletedFiles && this.editingActivity.deletedFiles.length > 0) {
           this.editingActivity.deletedFiles.forEach(file => {
             formData.append('removedFiles[]', file);
           });
         }
 
+        // ส่งข้อมูลรูปภาพที่ถูกลบ
         if (this.editingActivity.deletedImages && this.editingActivity.deletedImages.length > 0) {
           this.editingActivity.deletedImages.forEach(image => {
             formData.append('removedImages[]', image);
@@ -492,23 +540,13 @@ export default {
             headers: {
               'Content-Type': 'multipart/form-data'
             },
-            timeout: 30000
+            timeout: 30000 // 30 seconds timeout
           }
         );
         
         if (response.data.status === 'success') {
-          const index = this.activities.findIndex(a => a.id === this.editingActivity.id);
-          if (index !== -1) {
-            this.activities[index] = {
-              ...this.activities[index],
-              details: this.editingActivity.details,
-              file_paths: response.data.file_paths || this.activities[index].file_paths,
-              image_paths: response.data.image_paths || this.activities[index].image_paths,
-              updated_at: new Date().toISOString()
-            };
-          }
-
           this.toast.success('บันทึกการแก้ไขสำเร็จ');
+          await this.fetchActivities();
           this.closeEditModal();
         } else {
           throw new Error(response.data.message || 'ไม่สามารถบันทึกการแก้ไขได้');
@@ -517,18 +555,6 @@ export default {
         console.error('Error saving activity:', error);
         this.toast.error(error.response?.data?.message || error.message || 'ไม่สามารถบันทึกการแก้ไขได้');
       }
-    },
-
-    startEdit(activity) {
-      this.editingActivity = { 
-        ...activity,
-        important_info_id: activity.important_info_id,
-        deletedFiles: [],
-        deletedImages: []
-      };
-      this.newFiles = [];
-      this.newImages = [];
-      this.toast.info("เริ่มแก้ไขข้อมูล");
     },
 
     async deleteActivity(activity) {
@@ -602,6 +628,85 @@ export default {
     closeCreatorModal() {
       this.showCreatorModal = false;
       this.selectedActivity = null;
+    },
+
+    async startEdit(activity) {
+      this.editingId = activity.id;
+      this.editedDetails = activity.details;
+      this.editingActivity = { ...activity };
+      
+      // ดึงข้อมูลสำคัญจาก API
+      try {
+        const response = await axios.get(`http://localhost:8088/api/system-details/${activity.system_id}`);
+        this.importantInfoList = response.data;
+      } catch (error) {
+        console.error('Error fetching important info:', error);
+        this.toast.error('ไม่สามารถดึงข้อมูลสำคัญได้');
+      }
+
+      this.newFiles = [];
+      this.newImages = [];
+      this.toast.info("เริ่มแก้ไขข้อมูล");
+    },
+
+    handleFileChange(event) {
+      const files = event.target.files;
+      if (files.length > 0) {
+        this.newFiles = [...this.newFiles, ...files];
+      }
+    },
+
+    handleImageChange(event) {
+      const images = event.target.files;
+      if (images.length > 0) {
+        this.newImages = [...this.newImages, ...images];
+      }
+    },
+
+    removeNewFile(index) {
+      this.newFiles.splice(index, 1);
+    },
+
+    removeNewImage(index) {
+      this.newImages.splice(index, 1);
+    },
+
+    getImagePreview(image) {
+      return URL.createObjectURL(image);
+    },
+
+    deleteFile(path) {
+      if (!confirm(`ต้องการลบไฟล์ "${this.getFileName(path)}" ใช่หรือไม่?`)) {
+        return;
+      }
+
+      if (!this.editingActivity.deletedFiles) {
+        this.editingActivity.deletedFiles = [];
+      }
+      this.editingActivity.deletedFiles.push(path);
+      this.editingActivity.file_paths = this.editingActivity.file_paths
+        .split(',')
+        .filter(p => p !== path)
+        .join(',');
+    },
+
+    deleteImage(path) {
+      if (!confirm(`ต้องการลบรูปภาพ "${this.getFileName(path)}" ใช่หรือไม่?`)) {
+        return;
+      }
+
+      if (!this.editingActivity.deletedImages) {
+        this.editingActivity.deletedImages = [];
+      }
+      this.editingActivity.deletedImages.push(path);
+      this.editingActivity.image_paths = this.editingActivity.image_paths
+        .split(',')
+        .filter(p => p !== path)
+        .join(',');
+    },
+
+    getFileName(path) {
+      return path.split('/').pop();
     }
   },
 
