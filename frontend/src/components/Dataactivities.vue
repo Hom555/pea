@@ -259,7 +259,7 @@
                 </button>
                 <button
                   class="btn-delete"
-                  @click="confirmDelete(activity)"
+                  @click="confirmDeletePrompt(activity)"
                   title="ลบ"
                 >
                   <i class="fas fa-trash-alt"></i>
@@ -278,6 +278,32 @@
     >
       <i class="fas fa-inbox"></i>
       <p>ไม่พบข้อมูลกิจกรรม</p>
+    </div>
+
+    <!-- เพิ่ม modal ยืนยันการลบ -->
+    <div class="modal-overlay" v-if="showDeleteModal">
+      <div class="modal-card delete-modal">
+        <div class="modal-header delete">
+          <h3><i class="fas fa-exclamation-triangle"></i> ยืนยันการลบ</h3>
+          <button class="close-btn" @click="closeModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-content">
+            <p>คุณต้องการลบกิจกรรม "<span>{{ selectedActivity?.details }}</span>" ใช่หรือไม่?</p>
+            <p class="warning">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-btn" @click="closeModal">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="delete-btn" @click="confirmDelete">
+              <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -308,7 +334,9 @@ export default {
       removedImages: [],
       loading: false,
       toastShown: false,
-      error: null
+      error: null,
+      showDeleteModal: false,
+      selectedActivity: null,
     };
   },
   computed: {
@@ -502,19 +530,41 @@ export default {
         alert("ไม่สามารถแก้ไขข้อมูลได้");
       }
     },
-    async confirmDelete(activity) {
-      if (confirm("ต้องการลบรายการนี้ใช่หรือไม่?")) {
-        try {
-          await axios.delete(
-            `http://localhost:8088/api/activities/${activity.id}`
-          );
-          await this.fetchActivities();
-          alert("ลบข้อมูลสำเร็จ");
-        } catch (error) {
-          console.error("Error deleting activity:", error);
-          alert("ไม่สามารถลบข้อมูลได้");
+    async confirmDeletePrompt(activity) {
+      this.selectedActivity = activity;
+      this.showDeleteModal = true;
+    },
+    async confirmDelete() {
+      try {
+        if (!this.selectedActivity) {
+          this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
+          return;
         }
+        
+        const response = await axios.delete(
+          `http://localhost:8088/api/activities/${this.selectedActivity.id}`
+        );
+
+        if (response.data.status === 'success') {
+          this.activities = this.activities.filter(
+            activity => activity.id !== this.selectedActivity.id
+          );
+          this.toast.success('ลบกิจกรรมสำเร็จ');
+          this.closeModal();
+          await this.fetchActivities();
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถลบกิจกรรมได้');
+        }
+      } catch (error) {
+        console.error('Error deleting activity:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบกิจกรรมได้');
       }
+      this.showDeleteModal = false;
+      this.selectedActivity = null;
+    },
+    closeModal() {
+      this.showDeleteModal = false;
+      this.selectedActivity = null;
     },
     async startEdit(activity) {
       this.editingId = activity.id;
@@ -732,42 +782,54 @@ export default {
   },
   watch: {
     selectedSystemId: {
+      immediate: true,
       async handler(newVal) {
         if (newVal) {
-          const selectedSystem = this.systemList.find(
-            s => s.id === parseInt(newVal)
-          );
-          
-          if (!selectedSystem) {
-            this.selectedSystemId = "";
-            this.selectedImportantInfoId = "";
-            this.activities = [];
-            this.toast.error("ระบบนี้ถูกปิดการใช้งาน");
-            return;
+          try {
+            // เมื่อเลือกระบบ ให้โหลดข้อมูลสำคัญของระบบนั้น
+            const response = await axios.get(
+              `http://localhost:8088/api/system-details/${newVal}`
+            );
+            this.importantInfoList = response.data;
+          } catch (error) {
+            console.error('Error fetching important info:', error);
+            this.toast.error('ไม่สามารถโหลดข้อมูลสำคัญได้');
           }
-
-          this.selectedImportantInfoId = "";
-          this.activities = [];
-          await this.fetchSystemDetails();
         } else {
           this.importantInfoList = [];
-          this.activities = [];
+        }
+      }
+    },
+    selectedImportantInfoId: {
+      immediate: true,
+      async handler(newVal) {
+        if (newVal && this.selectedSystemId) {
+          await this.fetchActivities();
         }
       }
     }
   },
   async created() {
+    // โหลดข้อมูลระบบเมื่อ component ถูกสร้าง
     await this.fetchSystems();
     
-    const { systemId, importantInfoId } = this.$route.query;
-    if (systemId) {
-      const system = this.systemList.find(s => s.id === parseInt(systemId));
-      if (system) {
-        this.selectedSystemId = systemId;
-        if (importantInfoId) {
-          this.selectedImportantInfoId = importantInfoId;
-        }
+    // ถ้ามีการเลือกระบบและข้อมูลสำคัญไว้ก่อนหน้า ให้โหลดข้อมูลกิจกรรม
+    if (this.selectedSystemId && this.selectedImportantInfoId) {
+      await this.fetchActivities();
+    }
+  },
+  async mounted() {
+    try {
+      // โหลดข้อมูลระบบอีกครั้งเมื่อ component ถูก mount
+      await this.fetchSystems();
+      
+      // ถ้ามีการเลือกระบบและข้อมูลสำคัญไว้ก่อนหน้า ให้โหลดข้อมูลกิจกรรม
+      if (this.selectedSystemId && this.selectedImportantInfoId) {
+        await this.fetchActivities();
       }
+    } catch (error) {
+      console.error('Error in mounted:', error);
+      this.toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูล');
     }
   },
 };
@@ -1314,5 +1376,138 @@ i.fas.fa-file-alt {
 
 .error {
   color: red;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: white;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #1a237e, #283593);
+  border-radius: 20px 20px 0 0;
+  color: white;
+}
+
+.modal-header.delete {
+  background: linear-gradient(135deg, #c62828, #d32f2f);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.close-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255,255,255,0.3);
+  transform: rotate(90deg);
+}
+
+.modal-body {
+  padding: 25px;
+}
+
+.delete-content {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.delete-content p {
+  margin: 10px 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.delete-content span {
+  font-weight: 600;
+  color: #c62828;
+}
+
+.warning {
+  color: #c62828 !important;
+  font-size: 0.9rem !important;
+  margin-top: 15px !important;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.cancel-btn, .delete-btn {
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.delete-btn {
+  background: linear-gradient(135deg, #c62828, #d32f2f);
+  color: white;
+}
+
+.modal-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 </style>
