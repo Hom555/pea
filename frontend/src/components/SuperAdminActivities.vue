@@ -190,7 +190,11 @@
           <div class="form-group">
             <label>รูปภาพ:</label>
             <div class="image-upload">
-              <input type="file" multiple @change="handleImageChange">
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*"
+                @change="handleImageChange">
               <div class="image-list">
                 <div v-for="(image, index) in editingActivity.image_paths ? getFiles(editingActivity.image_paths) : []" :key="index" class="image-item">
                   <img :src="image.path" :alt="image.name" @click="showFullImage(image.path)">
@@ -467,8 +471,8 @@ export default {
 
     getFiles(paths) {
       if (!paths) return [];
-      return paths.split(',').map(path => ({
-        path: `http://localhost:8088${path}`,
+      return paths.split(',').filter(path => path).map(path => ({
+        path: path.startsWith('http') ? path : `http://localhost:8088${path}`,
         name: path.split('/').pop()
       }));
     },
@@ -498,13 +502,11 @@ export default {
 
         const formData = new FormData();
         formData.append('details', this.editingActivity.details.trim());
+        formData.append('id', this.editingActivity.id);
 
         // เพิ่มไฟล์ใหม่
         if (this.newFiles.length > 0) {
           this.newFiles.forEach(file => {
-            if (file.size > 10 * 1024 * 1024) { // 10MB limit
-              throw new Error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
-            }
             formData.append('files[]', file);
           });
         }
@@ -512,26 +514,23 @@ export default {
         // เพิ่มรูปภาพใหม่
         if (this.newImages.length > 0) {
           this.newImages.forEach(image => {
-            if (image.size > 5 * 1024 * 1024) { // 5MB limit
-              throw new Error(`รูปภาพ ${image.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
-            }
             formData.append('images[]', image);
           });
         }
 
         // ส่งข้อมูลไฟล์ที่ถูกลบ
         if (this.editingActivity.deletedFiles && this.editingActivity.deletedFiles.length > 0) {
-          this.editingActivity.deletedFiles.forEach(file => {
-            formData.append('removedFiles[]', file);
-          });
+          formData.append('removedFiles', JSON.stringify(this.editingActivity.deletedFiles));
         }
 
         // ส่งข้อมูลรูปภาพที่ถูกลบ
         if (this.editingActivity.deletedImages && this.editingActivity.deletedImages.length > 0) {
-          this.editingActivity.deletedImages.forEach(image => {
-            formData.append('removedImages[]', image);
-          });
+          formData.append('removedImages', JSON.stringify(this.editingActivity.deletedImages));
         }
+
+        // ส่งข้อมูลไฟล์และรูปภาพที่เหลือ
+        formData.append('file_paths', this.editingActivity.file_paths || '');
+        formData.append('image_paths', this.editingActivity.image_paths || '');
 
         const response = await axios.put(
           `http://localhost:8088/api/Superactivities/${this.editingActivity.id}`,
@@ -539,8 +538,7 @@ export default {
           {
             headers: {
               'Content-Type': 'multipart/form-data'
-            },
-            timeout: 30000 // 30 seconds timeout
+            }
           }
         );
         
@@ -676,32 +674,44 @@ export default {
     },
 
     deleteFile(path) {
-      if (!confirm(`ต้องการลบไฟล์ "${this.getFileName(path)}" ใช่หรือไม่?`)) {
+      if (!confirm(`ต้องการลบไฟล์ "${path.split('/').pop()}" ใช่หรือไม่?`)) {
         return;
       }
 
       if (!this.editingActivity.deletedFiles) {
         this.editingActivity.deletedFiles = [];
       }
-      this.editingActivity.deletedFiles.push(path);
-      this.editingActivity.file_paths = this.editingActivity.file_paths
-        .split(',')
-        .filter(p => p !== path)
+      
+      // เพิ่มไฟล์ที่จะลบเข้าไปใน array
+      const fullPath = path.includes('http://localhost:8088') ? 
+        path.replace('http://localhost:8088', '') : path;
+      this.editingActivity.deletedFiles.push(fullPath);
+
+      // อัพเดตรายการไฟล์ที่แสดง
+      const currentFiles = this.editingActivity.file_paths ? this.editingActivity.file_paths.split(',') : [];
+      this.editingActivity.file_paths = currentFiles
+        .filter(f => !f.includes(fullPath))
         .join(',');
     },
 
     deleteImage(path) {
-      if (!confirm(`ต้องการลบรูปภาพ "${this.getFileName(path)}" ใช่หรือไม่?`)) {
+      if (!confirm(`ต้องการลบรูปภาพ "${path.split('/').pop()}" ใช่หรือไม่?`)) {
         return;
       }
 
       if (!this.editingActivity.deletedImages) {
         this.editingActivity.deletedImages = [];
       }
-      this.editingActivity.deletedImages.push(path);
-      this.editingActivity.image_paths = this.editingActivity.image_paths
-        .split(',')
-        .filter(p => p !== path)
+      
+      // เพิ่มรูปภาพที่จะลบเข้าไปใน array
+      const fullPath = path.includes('http://localhost:8088') ? 
+        path.replace('http://localhost:8088', '') : path;
+      this.editingActivity.deletedImages.push(fullPath);
+
+      // อัพเดตรายการรูปภาพที่แสดง
+      const currentImages = this.editingActivity.image_paths ? this.editingActivity.image_paths.split(',') : [];
+      this.editingActivity.image_paths = currentImages
+        .filter(img => !img.includes(fullPath))
         .join(',');
     },
 
@@ -1245,6 +1255,9 @@ td {
   border-radius: 16px;
   width: 90%;
   max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   animation: modalSlideIn 0.3s ease;
 }
@@ -1255,6 +1268,11 @@ td {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: white;
+  border-radius: 16px 16px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .modal-title {
@@ -1296,6 +1314,8 @@ td {
 
 .modal-body {
   padding: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .form-group {
@@ -1353,6 +1373,11 @@ textarea.form-control {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  background: white;
+  border-radius: 0 0 16px 16px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
 }
 
 .btn-cancel, .btn-save {
