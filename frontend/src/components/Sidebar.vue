@@ -107,7 +107,12 @@
             <span v-if="!isCollapsed">จัดการผู้ใช้</span>
           </router-link>
 
-          <router-link to="/super-admin/activities" class="nav-item">
+          <!-- แสดงเฉพาะ superadmin -->
+          <router-link 
+            v-if="userData.role_id === 3" 
+            to="/super-admin/activities" 
+            class="nav-item"
+          >
             <i class="fas fa-chart-line"></i>
             <span v-if="!isCollapsed">ภาพรวมกิจกรรม</span>
           </router-link>

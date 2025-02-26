@@ -390,6 +390,23 @@ export default {
   },
 
   methods: {
+    async checkPermission() {
+      try {
+        const response = await axios.get('http://localhost:8088/api/check-permission');
+        if (response.data.data.role_id !== 3) {
+          this.toast.error('คุณไม่มีสิทธิ์เข้าถึงหน้านี้');
+          this.$router.push('/');
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Error checking permissions:', error);
+        this.toast.error('ไม่สามารถตรวจสอบสิทธิ์การเข้าถึงได้');
+        this.$router.push('/');
+        return false;
+      }
+    },
+
     async fetchSystems() {
       try {
         let response;
@@ -721,6 +738,7 @@ export default {
   },
 
   created() {
+    this.checkPermission();
     this.fetchSystems();
     this.fetchActivities();
   },
