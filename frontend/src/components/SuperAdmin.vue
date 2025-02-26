@@ -38,7 +38,23 @@
               <i class="fas fa-building"></i>
               แผนก
             </label>
+            <select 
+              v-if="showAddModal"
+              v-model="selectedDept" 
+              required
+              @change="handleDeptChange"
+            >
+              <option value="">เลือกแผนก</option>
+              <option 
+                v-for="dept in departments" 
+                :key="dept.dept_change_code" 
+                :value="dept"
+              >
+                {{ dept.dept_full }}
+              </option>
+            </select>
             <input 
+              v-else
               v-model="currentDeptFull" 
               required
               placeholder="กรอกชื่อแผนก"
@@ -224,7 +240,9 @@ export default {
         name_en: '',
         dept_full: '',
         dept_change_code: ''
-      }
+      },
+      departments: [],
+      selectedDept: null,
     };
   },
   computed: {
@@ -391,16 +409,43 @@ export default {
       this.showDeleteModal = false;
       this.selectedSystem = null;
     },
+    async fetchDepartments() {
+      try {
+        const response = await axios.get('http://localhost:8088/api/departments');
+        this.departments = response.data;
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        this.toast.error('ไม่สามารถดึงข้อมูลแผนกได้');
+      }
+    },
+    handleDeptChange() {
+      if (this.selectedDept) {
+        this.addForm.dept_change_code = this.selectedDept.dept_change_code;
+        this.addForm.dept_full = this.selectedDept.dept_full;
+        this.currentDeptFull = this.selectedDept.dept_full;
+      } else {
+        this.addForm.dept_change_code = '';
+        this.addForm.dept_full = '';
+        this.currentDeptFull = '';
+      }
+    },
     async addSystem() {
       try {
-        const response = await axios.post('http://localhost:8088/api/system-record', {
+        if (!this.addForm.dept_change_code || !this.addForm.dept_full) {
+          this.toast.error('กรุณาเลือกแผนก');
+          return;
+        }
+
+        const response = await axios.post('http://localhost:8088/api/super-admin/system-record', {
           nameTH: this.addForm.name_th,
           nameEN: this.addForm.name_en,
           dept_full: this.addForm.dept_full,
           dept_change_code: this.addForm.dept_change_code
         });
+        
         this.systems.unshift(response.data);
         this.showAddModal = false;
+        this.selectedDept = null;
         this.addForm = {
           name_th: '',
           name_en: '',
@@ -410,13 +455,14 @@ export default {
         this.toast.success('เพิ่มระบบสำเร็จ');
       } catch (error) {
         console.error('Error adding system:', error);
-        this.toast.error('ไม่สามารถเพิ่มระบบได้');
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถเพิ่มระบบได้');
       }
     },
     closeModal() {
       this.showAddModal = false;
       this.showEditModal = false;
       this.showDeleteModal = false;
+      this.selectedDept = null;
       // Reset forms
       this.addForm = {
         name_th: '',
@@ -519,6 +565,7 @@ export default {
   },
   mounted() {
     this.fetchSystems();
+    this.fetchDepartments();
   }
 };
 </script>
@@ -1302,5 +1349,22 @@ export default {
 
 .close-btn:hover {
   color: #333;
+}
+
+/* เพิ่ม style สำหรับ select */
+select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background-color: white;
+}
+
+select:focus {
+  border-color: #1a237e;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26,35,126,0.1);
 }
 </style> 

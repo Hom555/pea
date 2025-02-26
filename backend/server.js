@@ -1896,6 +1896,103 @@ app.get('/api/systems-by-department', getUserData, async (req, res) => {
   }
 });
 
+// ย้าย endpoint ไปไว้ก่อน app.listen()
+// === Department Management ===
+app.get('/api/departments', async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    
+    // ดึงเฉพาะ dept_change_code และ dept_full ที่ไม่ซ้ำกัน
+    const [departments] = await conn.query(`
+      SELECT DISTINCT 
+        dept_change_code,
+        dept_full
+      FROM users 
+      WHERE dept_change_code != ''
+        AND dept_full IS NOT NULL
+        AND dept_change_code IS NOT NULL
+      GROUP BY dept_change_code, dept_full
+      ORDER BY dept_full ASC
+    `);
+
+    // ส่งเฉพาะข้อมูลที่จำเป็น
+    const formattedDepartments = departments.map(dept => ({
+      dept_change_code: dept.dept_change_code,
+      dept_full: dept.dept_full
+    }));
+
+    res.json(formattedDepartments);
+  } catch (error) {
+    console.error('Error fetching departments:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลแผนกได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// === Super Admin System Management ===
+app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    const { nameTH, nameEN, dept_full, dept_change_code } = req.body;
+
+    // ตรวจสอบสิทธิ์ Super Admin
+    const [userRole] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [req.user.emp_id]
+    );
+
+    if (!userRole.length || userRole[0].role_id !== 3) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์ในการเพิ่มระบบ'
+      });
+    }
+
+    // Validate input
+    if (!nameTH || !nameEN || !dept_full || !dept_change_code) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
+      });
+    }
+
+    // Insert new record
+    const [result] = await conn.query(`
+      INSERT INTO system_master 
+      (name_th, name_en, dept_change_code, dept_full, is_active) 
+      VALUES (?, ?, ?, ?, 1)
+    `, [
+      nameTH.trim(),
+      nameEN.trim(),
+      dept_change_code,
+      dept_full
+    ]);
+
+    // Return success response with the new record
+    const [newSystem] = await conn.query(
+      'SELECT * FROM system_master WHERE id = ?',
+      [result.insertId]
+    );
+
+    res.json(newSystem[0]);
+
+  } catch (error) {
+    console.error('Error saving system record:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถบันทึกข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // Routes - ย้ายมาไว้หลัง middleware ทั้งหมด
 app.use('/api', activitiesRouter);
 
