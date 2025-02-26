@@ -593,6 +593,13 @@ app.post('/api/system-details', getUserData, async (req, res) => {
 
     // จัดการไฟล์
     let filePath = null;
+    
+    // ถ้ามีไฟล์เดิมและไม่มีการอัพโหลดไฟล์ใหม่
+    if (req.body.existingFiles) {
+      filePath = req.body.existingFiles;
+    }
+    
+    // ถ้ามีการอัพโหลดไฟล์ใหม่
     if (req.files && req.files.files) {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
       
@@ -692,25 +699,25 @@ app.get('/api/system-details/:systemId', async (req, res) => {
 app.put('/api/system-details/:id', getUserData, async (req, res) => {
   let conn;
   try {
-    const { id } = req.params;
-    const { importantInfo, referenceNo, additionalInfo, deletedFile } = req.body;
+    const detailId = req.params.id;
+    const { systemId, importantInfo, referenceNo, additionalInfo, existingFiles } = req.body;
     const userDept = req.user.dept_change_code;
 
-    if (!importantInfo || !referenceNo) {
-      return res.status(400).json({ 
+    // Validate required fields
+    if (!importantInfo?.trim() || !referenceNo?.trim()) {
+      return res.status(400).json({
         success: false,
-        message: 'กรุณากรอกข้อมูลที่จำเป็น' 
+        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
       });
     }
 
     conn = await pool.getConnection();
 
-    // ตรวจสอบว่าข้อมูลนี้เป็นของแผนกผู้ใช้หรือไม่
-    const [detail] = await conn.query(`
-      SELECT dept_change_code, file_path 
-      FROM system_details 
-      WHERE id = ?
-    `, [id]);
+    // Check if detail exists and belongs to user's department
+    const [detail] = await conn.query(
+      'SELECT dept_change_code FROM system_details WHERE id = ?',
+      [detailId]
+    );
 
     if (detail.length === 0) {
       return res.status(404).json({
@@ -726,81 +733,55 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       });
     }
 
-    // จัดการกับการลบไฟล์และไฟล์เดิม
-    let currentFilePaths = detail[0].file_path ? detail[0].file_path.split(',') : [];
+    // Handle file upload
+    let filePath = existingFiles || null;
     
-    if (deletedFile) {
-      // ลบไฟล์จากระบบไฟล์
-      const fullPath = path.join(__dirname, 'uploads', path.basename(deletedFile));
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
-        console.log('Deleted file:', fullPath);
-      }
-
-      // ลบ path ของไฟล์ออกจาก array
-      currentFilePaths = currentFilePaths.filter(path => path !== deletedFile);
-    }
-
-    // จัดการกับไฟล์ใหม่
     if (req.files && req.files.files) {
-      const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
+      const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
       
-      // สร้างโฟลเดอร์ถ้ายังไม่มี
-      const uploadDir = path.join(__dirname, 'uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      // อัพโหลดไฟล์ใหม่
-      for (const file of files) {
-        // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
+      const uploadedFiles = await Promise.all(files.map(async (file) => {
         const timestamp = Date.now();
         const originalName = Buffer.from(file.name, 'binary').toString('utf8');
         const filename = `${timestamp}-${originalName}`;
-        const uploadPath = path.join(uploadDir, filename);
+        const uploadPath = path.join(__dirname, 'uploads', filename);
+        
         await file.mv(uploadPath);
-        currentFilePaths.push('/uploads/' + filename);
-      }
+        return '/uploads/' + filename;
+      }));
+      
+      filePath = uploadedFiles.join(',');
     }
 
-    // อัพเดตข้อมูล
-    const updateData = {
-      important_info: importantInfo.trim(),
-      reference_no: referenceNo.trim(),
-      additional_info: additionalInfo?.trim() || null,
-      file_path: currentFilePaths.length > 0 ? currentFilePaths.join(',') : null
-    };
-
-    const updateFields = Object.keys(updateData)
-      .map(key => `${key} = ?`)
-      .join(', ');
-
-    const updateValues = Object.values(updateData);
-    updateValues.push(id);
-
-    await conn.query(`
+    // Update the record
+    const updateQuery = `
       UPDATE system_details 
-      SET ${updateFields}
+      SET important_info = ?,
+          reference_no = ?,
+          additional_info = ?,
+          file_path = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, updateValues);
+    `;
 
-    // ดึงข้อมูลที่อัพเดตแล้วเพื่อส่งกลับ
-    const [updatedDetail] = await conn.query(`
-      SELECT * FROM system_details WHERE id = ?
-    `, [id]);
+    await conn.query(updateQuery, [
+      importantInfo.trim(),
+      referenceNo.trim(),
+      additionalInfo?.trim() || '',
+      filePath,
+      detailId
+    ]);
 
     res.json({
       success: true,
-      message: 'อัปเดตข้อมูลสำเร็จ',
-      data: updatedDetail[0]
+      message: 'อัพเดทข้อมูลสำเร็จ',
+      file_path: filePath
     });
 
   } catch (error) {
-    console.error('Error updating system details:', error);
+    console.error('Error updating system detail:', error);
     res.status(500).json({
       success: false,
-      message: 'ไม่สามารถอัปเดตข้อมูลได้',
-      error: error.message
+      message: 'เกิดข้อผิดพลาดในการอัพเดทข้อมูล'
     });
   } finally {
     if (conn) conn.release();

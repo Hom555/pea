@@ -82,13 +82,37 @@
               <td>
                 <div v-if="detail.editing" class="file-list">
                   <div class="edit-files-section">
-                    <input
-                      type="file"
-                      @change="handleFileChange($event, detail)"
-                      multiple
-                      class="file-input"
-                    />
+                    <div class="file-upload-container">
+                      <label class="file-upload-label">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        เลือกไฟล์แนบ
+                        <input
+                          type="file"
+                          @change="handleFileChange($event, detail)"
+                          multiple
+                          class="file-input"
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                        />
+                      </label>
+                    </div>
+                    <div class="selected-files" v-if="detail.newFiles && detail.newFiles.length > 0">
+                      <h4>ไฟล์ที่เลือกใหม่:</h4>
+                      <div v-for="(file, index) in detail.newFiles" :key="index" class="file-item">
+                        <span class="file-name">
+                          <i class="fas fa-file"></i>
+                          {{ file.name }}
+                        </span>
+                        <button 
+                          @click="removeNewFile(detail, index)"
+                          class="delete-file-btn"
+                          title="ลบไฟล์"
+                        >
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
                     <div class="current-files" v-if="detail.file_path">
+                      <h4>ไฟล์ที่มีอยู่:</h4>
                       <div v-for="(filePath, fileIndex) in detail.file_path.split(',')"
                         :key="filePath"
                         class="file-item">
@@ -274,12 +298,18 @@ export default {
         
         // Handle file upload - only keep the latest file
         if (detail.newFiles && detail.newFiles.length > 0) {
-          const file = detail.newFiles[0]; // Take only the first file
-          if (file.size > 10 * 1024 * 1024) { // 10MB limit
-            this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
-            return;
+          for (const file of detail.newFiles) {
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+              this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+              return;
+            }
+            formData.append("files", file);
           }
-          formData.append("file", file);
+        }
+
+        // If there are existing files and no new files are being added, keep the existing file path
+        if (detail.file_path && (!detail.newFiles || detail.newFiles.length === 0)) {
+          formData.append("existingFiles", detail.file_path);
         }
 
         // Send update request
@@ -322,10 +352,20 @@ export default {
     },
     handleFileChange(event, detail) {
       const files = Array.from(event.target.files);
-      console.log("Selected files:", files);
-      if (files.length > 0) {
-        detail.newFiles = files;
+      let validFiles = [];
+      
+      for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+          this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+          continue;
+        }
+        validFiles.push(file);
       }
+      
+      if (!detail.newFiles) {
+        detail.newFiles = [];
+      }
+      detail.newFiles.push(...validFiles);
     },
     formatDate(dateString) {
       return new Date(dateString).toLocaleString("th-TH");
@@ -402,14 +442,12 @@ export default {
         return;
       }
 
-      try {
-        // Clear the file path
-        detail.file_path = '';
-        this.toast.info("ไฟล์จะถูกลบเมื่อกดบันทึก");
-      } catch (error) {
-        console.error('Error deleting file:', error);
-        this.toast.error('ไม่สามารถลบไฟล์ได้');
-      }
+      const filePaths = detail.file_path.split(',');
+      filePaths.splice(fileIndex, 1);
+      detail.file_path = filePaths.join(',');
+    },
+    removeNewFile(detail, index) {
+      detail.newFiles.splice(index, 1);
     }
   },
   watch: {
@@ -773,5 +811,83 @@ td {
 
 .file-input:hover {
   border-color: #3498db;
+}
+
+.file-upload-container {
+  margin-bottom: 15px;
+}
+
+.file-upload-label {
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: #3498db;
+  color: white;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-upload-label:hover {
+  background-color: #2980b9;
+}
+
+.file-upload-label i {
+  margin-right: 8px;
+}
+
+.file-input {
+  display: none;
+}
+
+.selected-files {
+  margin: 15px 0;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 5px;
+}
+
+.selected-files h4, .current-files h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-name i {
+  color: #3498db;
+}
+
+.delete-file-btn {
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-file-btn:hover {
+  background: #ef4444;
+  color: white;
 }
 </style>
