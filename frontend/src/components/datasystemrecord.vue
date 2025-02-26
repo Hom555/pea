@@ -50,7 +50,7 @@
                     <i class="fas fa-edit"></i> แก้ไข
                   </button>
                   <button
-                    @click="confirmDelete(record)"
+                    @click="confirmDeletePrompt(record)"
                     class="btn-delete"
                     title="ลบ"
                   >
@@ -119,27 +119,27 @@
       </div>
     </div>
 
-    <div v-if="showDeleteConfirm" class="delete-confirm-overlay">
-      <div class="delete-confirm-dialog">
-        <div class="dialog-header">
-          <i class="fas fa-exclamation-triangle warning-icon"></i>
-          <h3>ยืนยันการลบข้อมูล</h3>
-        </div>
-        
-        <div class="dialog-content">
-          <p>คุณต้องการลบระบบ "{{ recordToDelete?.name_th }}" ใช่หรือไม่?</p>
-          <p class="warning-text">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
-        </div>
-
-        <div class="dialog-actions">
-          <button @click="cancelDelete" class="btn-cancel">
+    <div class="modal-overlay" v-if="showDeleteModal">
+      <div class="modal-card delete-modal">
+        <div class="modal-header delete">
+          <h3><i class="fas fa-exclamation-triangle"></i> ยืนยันการลบ</h3>
+          <button class="close-btn" @click="closeModal">
             <i class="fas fa-times"></i>
-            ยกเลิก
           </button>
-          <button @click="handleDelete" class="btn-confirm-delete">
-            <i class="fas fa-trash-alt"></i>
-            ยืนยันการลบ
-          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-content">
+            <p>คุณต้องการลบระบบ "<span>{{ selectedSystem?.name_th }}</span>" ใช่หรือไม่?</p>
+            <p class="warning">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-btn" @click="closeModal">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="delete-btn" @click="confirmDelete">
+              <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -168,7 +168,9 @@ export default {
       nameEN: "",
       searchQuery: "",
       isSubmitting: false,
-      lastInsertId: null
+      lastInsertId: null,
+      showDeleteModal: false,
+      selectedSystem: null,
     };
   },
   computed: {
@@ -256,10 +258,40 @@ export default {
       this.nameEN = "";
       this.isSubmitting = false;
     },
-    async confirmDelete(record) {
-      if (confirm(`ต้องการลบระบบ "${record.name_th}" ใช่หรือไม่?`)) {
-        await this.deleteRecord(record.id);
+    confirmDeletePrompt(record) {
+      this.selectedSystem = record;
+      this.showDeleteModal = true;
+    },
+    async confirmDelete() {
+      try {
+        if (!this.selectedSystem) {
+          this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
+          return;
+        }
+        
+        const response = await axios.delete(
+          `http://localhost:8088/api/system-record/${this.selectedSystem.id}`
+        );
+
+        if (response.data.success) {
+          this.systemRecords = this.systemRecords.filter(
+            record => record.id !== this.selectedSystem.id
+          );
+          this.toast.success('ลบระบบสำเร็จ');
+          this.closeModal();
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถลบระบบได้');
+        }
+      } catch (error) {
+        console.error('Error deleting system:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบระบบได้');
       }
+      this.showDeleteModal = false;
+      this.selectedSystem = null;
+    },
+    closeModal() {
+      this.showDeleteModal = false;
+      this.selectedSystem = null;
     },
     showAddForm() {
       this.isAdding = true;
@@ -471,11 +503,131 @@ td {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+}
+
+.modal-card {
+  background: white;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #1a237e, #283593);
+  border-radius: 20px 20px 0 0;
+  color: white;
+}
+
+.modal-header.delete {
+  background: linear-gradient(135deg, #c62828, #d32f2f);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.close-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255,255,255,0.3);
+  transform: rotate(90deg);
+}
+
+.modal-body {
+  padding: 25px;
+}
+
+.delete-content {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.delete-content p {
+  margin: 10px 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.delete-content span {
+  font-weight: 600;
+  color: #c62828;
+}
+
+.warning {
+  color: #c62828 !important;
+  font-size: 0.9rem !important;
+  margin-top: 15px !important;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.cancel-btn, .delete-btn {
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.delete-btn {
+  background: linear-gradient(135deg, #c62828, #d32f2f);
+  color: white;
+}
+
+.modal-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .edit-form {
