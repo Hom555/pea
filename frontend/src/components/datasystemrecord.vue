@@ -330,16 +330,9 @@ export default {
         console.log('Response:', response.data);
 
         if (response.data.status === 'success') {
-          const newRecord = {
-            id: response.data.id,
-            name_th: this.nameTH,
-            name_en: this.nameEN,
-            dept_change_code: department.dept_change_code,
-            dept_full: department.dept_full,
-            created_at: new Date().toISOString()
-          };
-
-          this.systemRecords = [newRecord, ...this.systemRecords];
+          // เรียกดึงข้อมูลใหม่ทั้งหมดแทนการเพิ่มข้อมูลเข้า array
+          await this.fetchSystemRecords();
+          
           this.toast.success('บันทึกข้อมูลสำเร็จ');
           this.cancelEdit();
         }

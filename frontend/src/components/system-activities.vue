@@ -99,7 +99,7 @@
                 <div class="upload-placeholder">
                   <i class="fas fa-file"></i>
                   <span>คลิกหรือลากไฟล์มาวางที่นี่</span>
-                  <small>รองรับไฟล์ PDF, DOC, DOCX</small>
+                  <small>รองรับไฟล์ PDF, DOCX, XLSX </small>
                 </div>
               </div>
               <!-- File Preview -->
