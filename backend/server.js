@@ -41,8 +41,8 @@ app.use(fileUpload({
   useTempFiles: false,
   abortOnLimit: true,
   responseOnLimit: 'ไฟล์มีขนาดใหญ่เกินกำหนด (50MB)',
-  safeFileNames: true,
-  preserveExtension: true
+  safeFileNames: /[^\w-.]/g, // อนุญาตเฉพาะตัวอักษร ตัวเลข จุด และขีด
+  preserveExtension: 4 // รองรับนามสกุลไฟล์ได้สูงสุด 4 ตัวอักษร เช่น .xlsx
 }));
 
 // สร้างโฟลเดอร์สำหรับเก็บไฟล์
@@ -77,10 +77,15 @@ app.use((req, res, next) => {
 
 function generateUniqueFilename(originalname) {
   const timestamp = Date.now();
+  // แยกชื่อไฟล์และนามสกุล
+  const lastDotIndex = originalname.lastIndexOf('.');
+  const nameWithoutExt = originalname.substring(0, lastDotIndex);
+  const extension = originalname.substring(lastDotIndex);
+  
   // Ensure proper encoding of Thai filename
-  const sanitizedName = Buffer.from(originalname, 'latin1').toString('utf8');
-  // Return timestamp and original name separated by a single hyphen
-  return `${timestamp}-${sanitizedName}`;
+  const sanitizedName = Buffer.from(nameWithoutExt, 'latin1').toString('utf8');
+  // Return timestamp and original name separated by a single hyphen, preserving extension
+  return `${timestamp}-${sanitizedName}${extension}`;
 }
 
 const storage = multer.diskStorage({
@@ -99,6 +104,8 @@ const fileFilter = (req, file, cb) => {
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel' // .xls
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
@@ -2015,13 +2022,13 @@ app.get('/api/all-system-records', getUserData, async (req, res) => {
   try {
     conn = await pool.getConnection();
     
-    // ตรวจสอบสิทธิ์ Super Admin
+    // ตรวจสอบสิทธิ์ Super Admin และ Admin
     const [userRole] = await conn.query(
       'SELECT role_id FROM users WHERE emp_id = ?',
       [req.user.emp_id]
     );
 
-    if (!userRole.length || userRole[0].role_id !== 3) {
+    if (!userRole.length || (userRole[0].role_id !== 3 && userRole[0].role_id !== 2)) {
       return res.status(403).json({
         status: 'error',
         message: 'ไม่มีสิทธิ์เข้าถึงข้อมูล'
