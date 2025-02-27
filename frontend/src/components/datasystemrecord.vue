@@ -14,7 +14,7 @@
             class="search-input"
           />
         </div>
-        <button @click="showAddForm" class="btn-add">
+        <button v-if="userRole === 3 || userRole === 2" @click="showAddForm" class="btn-add">
           <i class="fas fa-plus"></i> เพิ่มระบบใหม่
         </button>
       </div>
@@ -43,6 +43,7 @@
               <td>
                 <div class="action-buttons">
                   <button
+                    v-if="userRole === 3 || userRole === 2"
                     @click="editRecord(record)"
                     class="btn-edit"
                     title="แก้ไข"
@@ -50,6 +51,7 @@
                     <i class="fas fa-edit"></i> แก้ไข
                   </button>
                   <button
+                    v-if="userRole === 3 || userRole === 2"
                     @click="confirmDeletePrompt(record)"
                     class="btn-delete"
                     title="ลบ"
@@ -171,6 +173,7 @@ export default {
       lastInsertId: null,
       showDeleteModal: false,
       selectedSystem: null,
+      userRole: null,
     };
   },
   computed: {
@@ -351,12 +354,14 @@ export default {
   },
   async created() {
     try {
-      const response = await axios.get(`http://localhost:8088/api/system-records`);
-      const system = response.data.find(s => s.id === parseInt(this.systemId));
+      // ตรวจสอบ role ของผู้ใช้
+      const response = await axios.get('http://localhost:8088/api/check-permission');
+      this.userRole = response.data.data.role_id;
+
+      const systemResponse = await axios.get(`http://localhost:8088/api/system-records`);
+      const system = systemResponse.data.find(s => s.id === parseInt(this.systemId));
       
-      if (!system?.is_active) {
-        this.toast.warning('ระบบนี้ถูกปิดการใช้งาน');
-      }
+
     } catch (error) {
       console.error('Error checking system status:', error);
       this.toast.error('ไม่สามารถตรวจสอบสถานะระบบได้');

@@ -301,27 +301,13 @@ app.get('/api/data', async (req, res) => {
 });
 
 // === System Records Management ===
-// ใช้ใน: SuperAdmin.vue - สำหรับดูข้อมูลทุกระบบ
-app.get('/api/all-system-records', getUserData, async (req, res) => {
+// ใช้ใน: datasystemrecord.vue - สำหรับดูข้อมูลระบบ
+app.get('/api/system-records', getUserData, async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
     
-    // ตรวจสอบ role_id จากฐานข้อมูล
-    const [userRole] = await conn.query(
-      'SELECT role_id FROM users WHERE emp_id = ?',
-      [req.user.emp_id]
-    );
-
-    // ถ้าไม่ใช่ Admin หรือ SuperAdmin ไม่อนุญาตให้เข้าถึง
-    if (!userRole.length || (userRole[0].role_id !== 2 && userRole[0].role_id !== 3)) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'ไม่มีสิทธิ์เข้าถึงข้อมูล'
-      });
-    }
-
-    // ดึงข้อมูลระบบทั้งหมด
+    // ดึงข้อมูลระบบทั้งหมดที่ยังเปิดใช้งานอยู่
     const [systems] = await conn.query(`
       SELECT 
         id,
@@ -333,14 +319,15 @@ app.get('/api/all-system-records', getUserData, async (req, res) => {
         updated_at,
         is_active
       FROM system_master
+      WHERE is_active = 1
       ORDER BY created_at DESC
     `);
 
-    console.log('Found all systems:', systems.length);
+    console.log('Found systems:', systems.length);
     res.json(systems);
 
   } catch (error) {
-    console.error('Error fetching all systems:', error);
+    console.error('Error fetching systems:', error);
     res.status(500).json({ 
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลได้'
@@ -2018,5 +2005,53 @@ process.on('SIGINT', async () => {
   } catch (err) {
     console.error('Error closing pool:', err);
     process.exit(1);
+  }
+});
+
+// === System Records Management ===
+// ใช้ใน: SuperAdmin.vue - สำหรับดูข้อมูลทุกระบบ
+app.get('/api/all-system-records', getUserData, async (req, res) => {
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    
+    // ตรวจสอบสิทธิ์ Super Admin
+    const [userRole] = await conn.query(
+      'SELECT role_id FROM users WHERE emp_id = ?',
+      [req.user.emp_id]
+    );
+
+    if (!userRole.length || userRole[0].role_id !== 3) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'ไม่มีสิทธิ์เข้าถึงข้อมูล'
+      });
+    }
+
+    // ดึงข้อมูลระบบทั้งหมด
+    const [systems] = await conn.query(`
+      SELECT 
+        id,
+        name_th,
+        name_en,
+        dept_change_code,
+        dept_full,
+        created_at,
+        updated_at,
+        is_active
+      FROM system_master
+      ORDER BY created_at DESC
+    `);
+
+    res.json(systems);
+
+  } catch (error) {
+    console.error('Error fetching all systems:', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 });

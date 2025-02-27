@@ -144,11 +144,8 @@ export default {
     async fetchSystems() {
       try {
         const response = await axios.get("http://localhost:8088/api/system-records");
-        // กรองเฉพาะระบบของแผนกตัวเอง
-        this.systemList = response.data.filter(system => 
-          system.is_active === 1 && 
-          system.dept_change_code === this.getUserDepartment?.dept_change_code
-        );
+        // แสดงระบบที่เปิดใช้งานทั้งหมด
+        this.systemList = response.data.filter(system => system.is_active === 1);
       } catch (error) {
         console.error("ไม่สามารถดึงข้อมูลระบบได้:", error);
         this.toast.error("ไม่สามารถดึงข้อมูลระบบได้");

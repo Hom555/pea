@@ -6,11 +6,11 @@ import system_details from "./components/system_details.vue";
 import systemActivities from "./components/system-activities.vue";
 import Dataactivities from "./components/Dataactivities.vue";
 import DataDisplay from "./components/DataDisplay.vue";
-import SuperAdmin from "@/components/SuperAdmin.vue";
+import SuperAdmin from "./components/SuperAdmin.vue";
 import Footer from "./components/Footer.vue";
 import Narbar from "./components/Narbar.vue";
-import UserManagement from '@/components/UserManagement.vue'
-import SuperAdminActivities from '@/components/SuperAdminActivities.vue'
+import UserManagement from './components/UserManagement.vue'
+import SuperAdminActivities from './components/SuperAdminActivities.vue'
 import axios from 'axios';
 
 const routes = [
