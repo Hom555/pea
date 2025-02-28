@@ -94,6 +94,7 @@
                   type="file"
                   multiple
                   @change="handleFileUpload"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
                   class="hidden"
                 />
                 <div class="upload-placeholder">
@@ -278,7 +279,29 @@ export default {
       }
     },
     handleFileUpload(event) {
-      this.files = Array.from(event.target.files);
+      const files = Array.from(event.target.files);
+      const allowedTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
+      
+      const validFiles = files.filter(file => allowedTypes.includes(file.type));
+      
+      if (validFiles.length !== files.length) {
+        this.toast.error('กรุณาเลือกไฟล์เฉพาะ PDF, DOCX, หรือ XLSX เท่านั้น');
+        event.target.value = ''; // Clear the input
+        return;
+      }
+      
+      this.files = validFiles;
+    },
+    removeFile(index) {
+      if (this.files[index]) {
+        this.files.splice(index, 1);
+      }
     },
     handleImageUpload(event) {
       const files = Array.from(event.target.files);
@@ -454,6 +477,12 @@ export default {
       } catch (error) {
         console.error("Error creating image URL:", error);
         return "";
+      }
+    },
+    removeImage(index) {
+      if (this.images[index]) {
+        URL.revokeObjectURL(this.getImagePreviewUrl(this.images[index]));
+        this.images.splice(index, 1);
       }
     },
   },
