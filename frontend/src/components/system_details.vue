@@ -77,7 +77,7 @@
               เอกสารแนบ
             </label>
             <div class="file-upload-area">
-              <div class="upload-box" @click="triggerFileInput">
+              <div class="upload-box" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleFileDrop">
                 <i class="fas fa-cloud-upload-alt"></i>
                 <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</p>
                 <span class="file-type">รองรับไฟล์: PDF, DOCX, XLSX (ไม่เกิน 10MB)</span>
@@ -91,6 +91,20 @@
                 class="hidden-input"
                 accept=".pdf,.docx,.xlsx"
               />
+
+              <!-- แสดงรายการไฟล์ที่เลือก -->
+              <div v-if="selectedFiles.length > 0" class="selected-files">
+                <div v-for="(file, index) in selectedFiles" :key="index" class="file-item">
+                  <div class="file-info">
+                    <i :class="getFileIcon(file.name)"></i>
+                    <span class="file-name">{{ file.name }}</span>
+                    <span class="file-size">({{ formatFileSize(file.size) }})</span>
+                  </div>
+                  <button @click="removeFile(index)" class="btn-remove">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -128,6 +142,8 @@ export default {
       additionalInfo: "",
       files: null,
       fileInput: null,
+      loading: false,
+      selectedFiles: [],
     };
   },
 
@@ -142,13 +158,19 @@ export default {
 
   methods: {
     async fetchSystems() {
+      this.loading = true;
       try {
         const response = await axios.get("http://localhost:8088/api/system-records");
-        // แสดงระบบที่เปิดใช้งานทั้งหมด
-        this.systemList = response.data.filter(system => system.is_active === 1);
+        // กรองระบบที่เปิดใช้งานและอยู่ในแผนกของผู้ใช้
+        this.systemList = response.data.filter(system => 
+          system.is_active === 1 && 
+          system.dept_change_code === this.getUserDepartment?.dept_change_code
+        );
       } catch (error) {
-        console.error("ไม่สามารถดึงข้อมูลระบบได้:", error);
+        console.error("Error fetching systems:", error);
         this.toast.error("ไม่สามารถดึงข้อมูลระบบได้");
+      } finally {
+        this.loading = false;
       }
     },
 
@@ -174,12 +196,10 @@ export default {
         formData.append('referenceNo', this.referenceNo.trim());
         formData.append('additionalInfo', this.additionalInfo?.trim() || '');
 
-        // เพิ่มไฟล์
-        if (this.files && this.files.length > 0) {
-          Array.from(this.files).forEach(file => {
-            formData.append('files', file);
-          });
-        }
+        // เพิ่มไฟล์ทั้งหมดที่เลือกไว้
+        this.selectedFiles.forEach(file => {
+          formData.append('files[]', file);
+        });
 
         const response = await axios.post(
           'http://localhost:8088/api/system-details',
@@ -213,17 +233,59 @@ export default {
       this.referenceNo = '';
       this.additionalInfo = '';
       this.files = null;
+      this.selectedFiles = [];
       if (this.$refs.fileInput) {
         this.$refs.fileInput.value = '';
       }
     },
 
     handleFileUpload(event) {
-      this.files = event.target.files || [];
+      const files = Array.from(event.target.files);
+      this.addFiles(files);
     },
 
-    triggerFileInput() {
-      this.$refs.fileInput.click();
+    handleFileDrop(event) {
+      const files = Array.from(event.dataTransfer.files);
+      this.addFiles(files);
+    },
+
+    addFiles(files) {
+      for (const file of files) {
+        // ตรวจสอบนามสกุลไฟล์
+        const extension = file.name.split('.').pop().toLowerCase();
+        const allowedTypes = ['pdf', 'docx', 'xlsx'];
+        
+        if (!allowedTypes.includes(extension)) {
+          this.toast.error(`ไฟล์ ${file.name} ไม่ได้รับการสนับสนุน`);
+          continue;
+        }
+
+        // ตรวจสอบขนาดไฟล์ (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+          continue;
+        }
+
+        this.selectedFiles.push(file);
+      }
+    },
+
+    removeFile(index) {
+      this.selectedFiles.splice(index, 1);
+    },
+
+    getFileIcon(fileName) {
+      const extension = fileName.split('.').pop().toLowerCase();
+      switch (extension) {
+        case 'pdf':
+          return 'fas fa-file-pdf';
+        case 'docx':
+          return 'fas fa-file-word';
+        case 'xlsx':
+          return 'fas fa-file-excel';
+        default:
+          return 'fas fa-file';
+      }
     },
 
     formatFileSize(bytes) {
@@ -232,6 +294,10 @@ export default {
       const sizes = ['Bytes', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    triggerFileInput() {
+      this.$refs.fileInput.click();
     },
 
     async onSystemChange() {
@@ -345,27 +411,127 @@ export default {
 
 .file-upload-area {
   background: #f8fafc;
-  border-radius: 4px;
-  padding: 1rem;
+  border-radius: 12px;
+  padding: 20px;
 }
 
 .upload-box {
-  border: 2px dashed #ddd;
-  border-radius: 4px;
-  padding: 1rem;
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+  padding: 30px;
   text-align: center;
   cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.upload-box:hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
 }
 
 .upload-box i {
-  font-size: 2rem;
-  color: #666;
-  margin-bottom: 0.75rem;
+  font-size: 2.5rem;
+  color: #3b82f6;
+  margin-bottom: 15px;
+}
+
+.upload-box p {
+  color: #1e293b;
+  font-size: 1rem;
+  margin: 10px 0;
 }
 
 .file-type {
-  font-size: 0.85rem;
-  color: #666;
+  display: block;
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-top: 8px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.selected-files {
+  margin-top: 20px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.2s ease;
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+.file-item:hover {
+  background-color: #f8fafc;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.file-info i {
+  font-size: 1.25rem;
+  width: 24px;
+  text-align: center;
+}
+
+.file-info i.fa-file-pdf {
+  color: #ef4444;
+}
+
+.file-info i.fa-file-word {
+  color: #2563eb;
+}
+
+.file-info i.fa-file-excel {
+  color: #16a34a;
+}
+
+.file-name {
+  font-size: 0.95rem;
+  color: #1e293b;
+  flex: 1;
+}
+
+.file-size {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.btn-remove {
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover {
+  background: #ef4444;
+  color: white;
+  transform: scale(1.05);
 }
 
 .form-actions {

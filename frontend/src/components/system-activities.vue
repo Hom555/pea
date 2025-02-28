@@ -77,7 +77,6 @@
 
           <!-- File Upload Section -->
           <div class="upload-grid">
-            <!-- Document Upload -->
             <div class="upload-section">
               <label>
                 <i class="fas fa-file-upload"></i>
@@ -100,14 +99,17 @@
                 <div class="upload-placeholder">
                   <i class="fas fa-file"></i>
                   <span>คลิกหรือลากไฟล์มาวางที่นี่</span>
-                  <small>รองรับไฟล์ PDF, DOCX, XLSX </small>
+                  <small>รองรับไฟล์ PDF, DOCX, XLSX (ไม่เกิน 10MB)</small>
                 </div>
               </div>
               <!-- File Preview -->
               <div class="file-preview" v-if="files.length > 0">
                 <div v-for="(file, index) in files" :key="index" class="preview-item">
-                  <i class="fas fa-file"></i>
-                  <span>{{ file.name }}</span>
+                  <div class="file-info">
+                    <i :class="getFileIcon(file.name)"></i>
+                    <span class="file-name">{{ file.name }}</span>
+                    <span class="file-size">({{ formatFileSize(file.size) }})</span>
+                  </div>
                   <button @click.prevent="removeFile(index)" class="remove-btn">
                     <i class="fas fa-times"></i>
                   </button>
@@ -138,13 +140,13 @@
                 <div class="upload-placeholder">
                   <i class="fas fa-image"></i>
                   <span>คลิกหรือลากรูปภาพมาวางที่นี่</span>
-                  <small>รองรับไฟล์ JPG, PNG</small>
+                  <small>รองรับไฟล์ JPG, PNG (ไม่เกิน 5MB)</small>
                 </div>
               </div>
               <!-- Image Preview -->
               <div class="image-preview" v-if="images.length > 0">
                 <div v-for="(image, index) in images" :key="index" class="preview-item">
-                  <img v-if="image" :src="getImagePreviewUrl(image)" alt="Preview" />
+                  <img :src="getImagePreviewUrl(image)" alt="Preview" />
                   <button @click.prevent="removeImage(index)" class="remove-btn">
                     <i class="fas fa-times"></i>
                   </button>
@@ -280,39 +282,95 @@ export default {
     },
     handleFileUpload(event) {
       const files = Array.from(event.target.files);
-      const allowedTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      ];
-      
-      const validFiles = files.filter(file => allowedTypes.includes(file.type));
-      
-      if (validFiles.length !== files.length) {
-        this.toast.error('กรุณาเลือกไฟล์เฉพาะ PDF, DOCX, หรือ XLSX เท่านั้น');
-        event.target.value = ''; // Clear the input
-        return;
-      }
-      
-      this.files = validFiles;
+      this.addFiles(files);
     },
-    removeFile(index) {
-      if (this.files[index]) {
-        this.files.splice(index, 1);
+    handleFileDrop(event) {
+      const files = Array.from(event.dataTransfer.files);
+      this.addFiles(files);
+    },
+    addFiles(files) {
+      for (const file of files) {
+        // ตรวจสอบนามสกุลไฟล์
+        const extension = file.name.split('.').pop().toLowerCase();
+        const allowedTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+        
+        if (!allowedTypes.includes(extension)) {
+          this.toast.error(`ไฟล์ ${file.name} ไม่ได้รับการสนับสนุน`);
+          continue;
+        }
+
+        // ตรวจสอบขนาดไฟล์ (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
+          continue;
+        }
+
+        this.files.push(file);
       }
     },
     handleImageUpload(event) {
       const files = Array.from(event.target.files);
-      const validImages = files.filter(
-        (file) => file && file.type.startsWith("image/")
-      );
-      if (validImages.length !== files.length) {
-        alert("กรุณาเลือกไฟล์รูปภาพเท่านั้น");
-        return;
+      this.addImages(files);
+    },
+    handleImageDrop(event) {
+      const files = Array.from(event.dataTransfer.files);
+      this.addImages(files);
+    },
+    addImages(files) {
+      for (const file of files) {
+        // ตรวจสอบว่าเป็นรูปภาพหรือไม่
+        if (!file.type.startsWith('image/')) {
+          this.toast.error(`ไฟล์ ${file.name} ไม่ใช่รูปภาพ`);
+          continue;
+        }
+
+        // ตรวจสอบขนาดไฟล์ (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          this.toast.error(`รูปภาพ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 5MB)`);
+          continue;
+        }
+
+        this.images.push(file);
       }
-      this.images = validImages;
+    },
+    removeFile(index) {
+      this.files.splice(index, 1);
+    },
+    removeImage(index) {
+      if (this.images[index]) {
+        URL.revokeObjectURL(this.getImagePreviewUrl(this.images[index]));
+        this.images.splice(index, 1);
+      }
+    },
+    getFileIcon(fileName) {
+      const extension = fileName.split('.').pop().toLowerCase();
+      switch (extension) {
+        case 'pdf':
+          return 'fas fa-file-pdf';
+        case 'doc':
+        case 'docx':
+          return 'fas fa-file-word';
+        case 'xls':
+        case 'xlsx':
+          return 'fas fa-file-excel';
+        default:
+          return 'fas fa-file';
+      }
+    },
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    getImagePreviewUrl(image) {
+      try {
+        return image ? URL.createObjectURL(image) : "";
+      } catch (error) {
+        console.error("Error creating image URL:", error);
+        return "";
+      }
     },
     async submitForm() {
       if (this.isSubmitting) {
@@ -471,20 +529,6 @@ export default {
       const parts = filePath.split("/");
       return parts[parts.length - 1];
     },
-    getImagePreviewUrl(image) {
-      try {
-        return image ? URL.createObjectURL(image) : "";
-      } catch (error) {
-        console.error("Error creating image URL:", error);
-        return "";
-      }
-    },
-    removeImage(index) {
-      if (this.images[index]) {
-        URL.revokeObjectURL(this.getImagePreviewUrl(this.images[index]));
-        this.images.splice(index, 1);
-      }
-    },
   },
   watch: {
     importantInfo() {
@@ -620,68 +664,142 @@ textarea:focus {
 }
 
 .upload-section {
-  background: #f8f9fa;
-  padding: 16px;
-  border-radius: 6px;
-  border: 2px dashed #ddd;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
 }
 
 .upload-area {
-  padding: 24px 16px;
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+  padding: 30px;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
+  background: white;
 }
 
 .upload-area:hover {
-  background: rgba(52, 152, 219, 0.1);
+  border-color: #3b82f6;
+  background: #f8fafc;
 }
 
 .upload-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: #666;
+  gap: 8px;
 }
 
 .upload-placeholder i {
-  font-size: 1.5rem;
-  color: #3498db;
+  font-size: 2rem;
+  color: #3b82f6;
+}
+
+.upload-placeholder small {
+  color: #64748b;
+  font-size: 0.875rem;
 }
 
 .hidden {
   display: none;
 }
 
-.file-preview,
-.image-preview {
+.file-preview, .image-preview {
   margin-top: 16px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .preview-item {
-  background: white;
-  padding: 8px;
-  border-radius: 8px;
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.preview-item:last-child {
+  border-bottom: none;
+}
+
+.file-info {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
 }
 
-.preview-item img {
-  width: 50px;
-  height: 50px;
+.file-info i {
+  font-size: 1.25rem;
+}
+
+.file-info i.fa-file-pdf {
+  color: #ef4444;
+}
+
+.file-info i.fa-file-word {
+  color: #2563eb;
+}
+
+.file-info i.fa-file-excel {
+  color: #16a34a;
+}
+
+.file-name {
+  font-size: 0.95rem;
+  color: #1e293b;
+  flex: 1;
+}
+
+.file-size {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.image-preview .preview-item {
+  position: relative;
+  padding: 0;
+}
+
+.image-preview img {
+  width: 120px;
+  height: 120px;
   object-fit: cover;
-  border-radius: 4px;
 }
 
 .remove-btn {
-  background: none;
+  background: #fee2e2;
+  color: #ef4444;
   border: none;
-  color: #e74c3c;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+.remove-btn:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.image-preview .remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+}
+
+.image-preview .remove-btn:hover {
+  background: #ef4444;
 }
 
 .form-actions {
