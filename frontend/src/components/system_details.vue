@@ -197,9 +197,16 @@ export default {
         formData.append('additionalInfo', this.additionalInfo?.trim() || '');
 
         // เพิ่มไฟล์ทั้งหมดที่เลือกไว้
-        this.selectedFiles.forEach(file => {
-          formData.append('files[]', file);
-        });
+        if (this.selectedFiles && this.selectedFiles.length > 0) {
+          this.selectedFiles.forEach(file => {
+            formData.append('files', file);
+          });
+        }
+
+        // Log FormData content for debugging
+        for (let [key, value] of formData.entries()) {
+          console.log(`${key}: ${value}`);
+        }
 
         const response = await axios.post(
           'http://localhost:8088/api/system-details',
@@ -214,6 +221,7 @@ export default {
         if (response.data.success) {
           this.toast.success('บันทึกข้อมูลสำเร็จ');
           this.resetForm();
+          this.$emit('refresh');
         } else {
           throw new Error(response.data.message || 'ไม่สามารถบันทึกข้อมูลได้');
         }

@@ -49,13 +49,12 @@ app.use(fileUpload({
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
-  fs.chmodSync(uploadsDir, 0o755);
-  console.log('สร้างโฟลเดอร์ uploads สำเร็จ');
-} else {
-  console.log('โฟลเดอร์ uploads มีอยู่แล้ว');
 }
 
-// แก้ไขการจัดการ static files
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
+
+// ปรับปรุงการจัดการ static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ปรับปรุงการจัดการการเข้าถึงไฟล์
@@ -596,19 +595,35 @@ app.post('/api/system-details', getUserData, async (req, res) => {
     // ถ้ามีการอัพโหลดไฟล์ใหม่
     if (req.files && req.files.files) {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+      console.log('Processing files:', files);
       
       const uploadedFiles = await Promise.all(files.map(async (file) => {
-        // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
-        const timestamp = Date.now();
-        const originalName = Buffer.from(file.name, 'binary').toString('utf8');
-        const filename = `${timestamp}-${originalName}`;
-        const uploadPath = path.join(__dirname, 'uploads', filename);
-        
-        await file.mv(uploadPath);
-        return '/uploads/' + filename;
+        try {
+          // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
+          const timestamp = Date.now();
+          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
+          const filename = `${timestamp}-${originalName}`;
+          const uploadPath = path.join(__dirname, 'uploads', filename);
+          
+          console.log('Moving file to:', uploadPath);
+          await file.mv(uploadPath);
+          console.log('File moved successfully');
+          
+          return '/uploads/' + filename;
+        } catch (error) {
+          console.error('Error processing file:', error);
+          throw error;
+        }
       }));
       
-      filePath = uploadedFiles.join(',');
+      console.log('Uploaded files:', uploadedFiles);
+      
+      // รวม path ของไฟล์เดิม (ถ้ามี) กับไฟล์ใหม่
+      if (filePath) {
+        filePath = filePath + ',' + uploadedFiles.join(',');
+      } else {
+        filePath = uploadedFiles.join(',');
+      }
     }
 
     // บันทึกข้อมูล
@@ -643,10 +658,7 @@ app.post('/api/system-details', getUserData, async (req, res) => {
     console.error('Error saving system details:', error);
     res.status(500).json({
       success: false,
-      message: 'ไม่สามารถบันทึกข้อมูลได้',
-      error: error.message,
-      sqlMessage: error.sqlMessage,
-      sqlState: error.sqlState
+      message: error.message || 'ไม่สามารถบันทึกข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();
@@ -709,7 +721,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
     // Check if detail exists and belongs to user's department
     const [detail] = await conn.query(
-      'SELECT dept_change_code FROM system_details WHERE id = ?',
+      'SELECT dept_change_code, file_path FROM system_details WHERE id = ?',
       [detailId]
     );
 
@@ -728,7 +740,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
     }
 
     // Handle file upload
-    let filePath = existingFiles || null;
+    let filePath = existingFiles || detail[0].file_path || null;
     
     if (req.files && req.files.files) {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
@@ -743,7 +755,12 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
         return '/uploads/' + filename;
       }));
       
-      filePath = uploadedFiles.join(',');
+      // รวม path ของไฟล์เดิม (ถ้ามี) กับไฟล์ใหม่
+      if (filePath) {
+        filePath = filePath + ',' + uploadedFiles.join(',');
+      } else {
+        filePath = uploadedFiles.join(',');
+      }
     }
 
     // Update the record
