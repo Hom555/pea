@@ -14,7 +14,7 @@
           <div class="form-group">
             <label>
               <i class="fas fa-font"></i>
-              ชื่อระบบ (ภาษาไทย)
+              ชื่อระบบ (ภาษาไทย) <span class="required">*</span>
             </label>
             <input 
               v-model="currentNameTH" 
@@ -25,7 +25,7 @@
           <div class="form-group">
             <label>
               <i class="fas fa-language"></i>
-              ชื่อระบบ (ภาษาอังกฤษ)
+              ชื่อระบบ (ภาษาอังกฤษ) <span class="required">*</span>
             </label>
             <input 
               v-model="currentNameEN" 
@@ -36,7 +36,7 @@
           <div class="form-group">
             <label>
               <i class="fas fa-building"></i>
-              แผนก
+              แผนก <span class="required">*</span>
             </label>
             <select 
               v-if="showAddModal"
@@ -44,7 +44,7 @@
               required
               @change="handleDeptChange"
             >
-              <option value="">เลือกแผนก</option>
+              <option value="" disabled selected>กรุณาเลือกแผนก</option>
               <option 
                 v-for="dept in departments" 
                 :key="dept.dept_change_code" 
@@ -411,7 +411,9 @@ export default {
     },
     async fetchDepartments() {
       try {
+        console.log('Fetching departments...');
         const response = await axios.get('http://localhost:8088/api/departments');
+        console.log('Departments fetched:', response.data);
         this.departments = response.data;
       } catch (error) {
         console.error('Error fetching departments:', error);

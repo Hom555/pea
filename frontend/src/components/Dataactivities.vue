@@ -111,7 +111,7 @@
                   <div class="edit-files-section">
                     <label class="file-label">
                       <i class="fas fa-file-upload"></i>
-                      เพิ่มเอกสารแนบ
+                      เลือกไฟล์
                       <input
                         type="file"
                         @change="handleFileChange"
@@ -151,7 +151,7 @@
                   <div class="edit-images-section">
                     <label class="file-label">
                       <i class="fas fa-image"></i>
-                      เพิ่มรูปภาพ
+                      เลือกรูปภาพ
                       <input
                         type="file"
                         @change="handleImageChange"
@@ -186,7 +186,6 @@
                             @click="openImage(image.trim())"
                           />
                           <button 
-                            v-if="editingId === activity.id"
                             @click.stop="deleteImage(activity, iIndex)" 
                             class="thumbnail-remove-btn"
                           >
@@ -305,6 +304,136 @@
         </div>
       </div>
     </div>
+
+    <!-- เพิ่ม modal แก้ไขข้อมูล -->
+    <div class="modal-overlay" v-if="editingId">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-edit"></i>
+            <h3>แก้ไขข้อมูล</h3>
+          </div>
+          <button class="close-btn" @click="cancelEdit">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- รายละเอียด -->
+          <div class="form-group">
+            <label>รายละเอียด</label>
+            <textarea
+              v-model="editedDetails"
+              class="edit-textarea"
+              placeholder="รายละเอียด"
+            ></textarea>
+          </div>
+
+          <!-- จัดการไฟล์เอกสาร -->
+          <div class="form-group">
+            <label>เอกสารแนบ</label>
+            <div class="edit-files-section">
+              <label class="file-label">
+                <i class="fas fa-file-upload"></i>
+                เลือกไฟล์
+                <input
+                  type="file"
+                  @change="handleFileChange"
+                  multiple
+                  class="file-input"
+                />
+              </label>
+
+              <!-- แสดงไฟล์ที่เลือกใหม่ -->
+              <div v-if="newFiles.length > 0" class="new-files">
+                <div v-for="(file, index) in newFiles" :key="index" class="file-item">
+                  <i class="fas fa-file"></i>
+                  <span class="file-name">{{ file.name }}</span>
+                  <button @click="removeNewFile(index)" class="remove-btn">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- แสดงไฟล์ที่มีอยู่ -->
+              <div v-if="editedActivity?.file_paths" class="current-files">
+                <div v-for="(file, index) in editedActivity.file_paths.split(',')"
+                  :key="file"
+                  class="file-item">
+                  <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
+                    <i class="fas fa-file-alt"></i>
+                    <span class="file-name">{{ getFileName(file) }}</span>
+                  </a>
+                  <button @click="deleteFile(editedActivity, index)" class="remove-btn">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- จัดการรูปภาพ -->
+          <div class="form-group">
+            <label>รูปภาพ</label>
+            <div class="edit-images-section">
+              <label class="file-label">
+                <i class="fas fa-image"></i>
+                เลือกรูปภาพ
+                <input
+                  type="file"
+                  @change="handleImageChange"
+                  multiple
+                  accept="image/*"
+                  class="file-input"
+                />
+              </label>
+
+              <!-- แสดงรูปภาพที่เลือกใหม่ -->
+              <div v-if="newImages.length > 0" class="new-images">
+                <div v-for="(image, index) in newImages" :key="index" class="image-item">
+                  <img :src="getImagePreview(image)" :alt="image.name" />
+                  <button @click="removeNewImage(index)" class="remove-btn">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- แสดงรูปภาพที่มีอยู่ -->
+              <div v-if="editedActivity?.image_paths" class="current-images">
+                <div
+                  v-for="(image, iIndex) in editedActivity.image_paths.split(',')"
+                  :key="iIndex"
+                  class="thumbnail-container"
+                >
+                  <div class="thumbnail">
+                    <img
+                      :src="`http://localhost:8088${image.trim()}`"
+                      :alt="getFileName(image)"
+                      loading="lazy"
+                      @click="openImage(image.trim())"
+                    />
+                    <button 
+                      @click.stop="deleteImage(editedActivity, iIndex)" 
+                      class="thumbnail-remove-btn"
+                    >
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="cancel-btn" @click="cancelEdit">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="save-btn" @click="saveEdit(editedActivity)">
+              <i class="fas fa-save"></i> บันทึก
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -337,6 +466,7 @@ export default {
       error: null,
       showDeleteModal: false,
       selectedActivity: null,
+      editedActivity: null,
     };
   },
   computed: {
@@ -1384,21 +1514,28 @@ i.fas.fa-file-alt {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(5px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
+  overflow-y: auto;
+  padding: 20px 0;
 }
 
 .modal-card {
+  margin: auto;
   background: white;
   border-radius: 20px;
   width: 100%;
   max-width: 500px;
   box-shadow: 0 15px 30px rgba(0,0,0,0.2);
   animation: modalSlideIn 0.3s ease-out;
+  position: relative;
 }
 
 .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   padding: 20px 25px;
   border-bottom: 1px solid #eee;
   display: flex;
@@ -1439,62 +1576,59 @@ i.fas.fa-file-alt {
 
 .modal-body {
   padding: 25px;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
 }
 
-.delete-content {
-  text-align: center;
-  padding: 20px 0;
+.modal-body::-webkit-scrollbar {
+  width: 8px;
 }
 
-.delete-content p {
-  margin: 10px 0;
-  font-size: 1.1rem;
-  color: #333;
+.modal-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
 }
 
-.delete-content span {
-  font-weight: 600;
-  color: #c62828;
+.modal-body::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
 }
 
-.warning {
-  color: #c62828 !important;
-  font-size: 0.9rem !important;
-  margin-top: 15px !important;
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 25px;
+.modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
 }
 
-.cancel-btn, .delete-btn {
-  padding: 12px 24px;
-  border-radius: 10px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.3s ease;
+@media (max-width: 768px) {
+  .modal-card {
+    width: 90%;
+    margin: 20px auto;
+  }
+  
+  .modal-body {
+    max-height: calc(100vh - 140px);
+  }
 }
 
-.cancel-btn {
-  background: #f5f5f5;
-  color: #666;
-}
-
-.delete-btn {
-  background: linear-gradient(135deg, #c62828, #d32f2f);
-  color: white;
-}
-
-.modal-actions button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+@media (max-width: 480px) {
+  .modal-card {
+    width: 95%;
+    margin: 10px auto;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+  }
+  
+  .save-btn,
+  .cancel-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @keyframes modalSlideIn {
@@ -1505,6 +1639,118 @@ i.fas.fa-file-alt {
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+.modal-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.save-btn,
+.cancel-btn {
+  min-width: 120px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+  color: white;
+}
+
+.save-btn:hover {
+  background: linear-gradient(135deg, #1976D2, #1565C0);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.save-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.cancel-btn {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.cancel-btn:hover {
+  background: #eeeeee;
+  color: #333;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.cancel-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.save-btn i,
+.cancel-btn i {
+  font-size: 1.1rem;
+}
+
+/* สำหรับปุ่มในโหมด delete */
+.delete-btn {
+  min-width: 120px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  color: white;
+  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
+}
+
+.delete-btn:hover {
+  background: linear-gradient(135deg, #d32f2f, #c62828);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+}
+
+.delete-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
+}
+
+.delete-btn i {
+  font-size: 1.1rem;
+}
+
+/* ปรับแต่งสำหรับหน้าจอมือถือ */
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: 12px;
+  }
+  
+  .save-btn,
+  .cancel-btn,
+  .delete-btn {
+    width: 100%;
+    padding: 12px;
   }
 }
 </style>

@@ -45,106 +45,17 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="detail in filteredDetails" :key="detail.id" :class="{ 'editing-row': detail.editing }">
+            <tr v-for="detail in filteredDetails" :key="detail.id">
+              <td>{{ detail.important_info }}</td>
+              <td>{{ detail.reference_no }}</td>
+              <td>{{ detail.additional_info || "-" }}</td>
               <td>
-                <input
-                  v-if="detail.editing"
-                  v-model="detail.editedInfo.important_info"
-                  type="text"
-                  class="edit-input-same-cell"
-                  :style="{ height: detail.editing ? '100%' : 'auto' }"
-                  placeholder="ข้อมูลสำคัญ"
-                />
-                <span v-else class="cell-text">{{ detail.important_info }}</span>
-              </td>
-              <td>
-                <input
-                  v-if="detail.editing"
-                  v-model="detail.editedInfo.reference_no"
-                  type="text"
-                  class="edit-input-same-cell"
-                  :style="{ height: detail.editing ? '100%' : 'auto' }"
-                  placeholder="เลขที่อ้างอิง"
-                />
-                <span v-else class="cell-text">{{ detail.reference_no }}</span>
-              </td>
-              <td>
-                <input
-                  v-if="detail.editing"
-                  v-model="detail.editedInfo.additional_info"
-                  type="text"
-                  class="edit-input-same-cell"
-                  :style="{ height: detail.editing ? '100%' : 'auto' }"
-                  placeholder="ข้อมูลเพิ่มเติม"
-                />
-                <span v-else class="cell-text">{{ detail.additional_info || "-" }}</span>
-              </td>
-              <td>
-                <div v-if="detail.editing" class="file-list">
-                  <div class="edit-files-section">
-                    <div class="file-upload-container">
-                      <label class="file-upload-label">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        เลือกไฟล์แนบ
-                        <input
-                          type="file"
-                          @change="handleFileChange($event, detail)"
-                          multiple
-                          class="file-input"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
-                        />
-                      </label>
-                    </div>
-                    <div class="selected-files" v-if="detail.newFiles && detail.newFiles.length > 0">
-                      <h4>ไฟล์ที่เลือกใหม่:</h4>
-                      <div v-for="(file, index) in detail.newFiles" :key="index" class="file-item">
-                        <span class="file-name">
-                          <i class="fas fa-file"></i>
-                          {{ file.name }}
-                        </span>
-                        <button 
-                          @click="removeNewFile(detail, index)"
-                          class="delete-file-btn"
-                          title="ลบไฟล์"
-                        >
-                          <i class="fas fa-times"></i>
-                        </button>
-                      </div>
-                    </div>
-                    <div class="current-files" v-if="detail.file_path">
-                      <h4>ไฟล์ที่มีอยู่:</h4>
-                      <div v-for="(filePath, fileIndex) in detail.file_path.split(',')"
-                        :key="filePath"
-                        class="file-item">
-                        <a
-                          :href="`http://localhost:8088${filePath}`"
-                          target="_blank"
-                          class="file-link"
-                        >
-                          <i class="fas fa-file-alt"></i>
-                          {{ getFileName(filePath) }}
-                        </a>
-                        <button 
-                          @click="deleteFile(detail, fileIndex)"
-                          class="delete-file-btn"
-                          title="ลบไฟล์"
-                        >
-                          <i class="fas fa-times"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="file-list">
+                <div class="file-list">
                   <template v-if="detail.file_path">
                     <div v-for="(filePath, fileIndex) in detail.file_path.split(',')"
                       :key="filePath"
                       class="file-item">
-                      <a
-                        :href="`http://localhost:8088${filePath}`"
-                        target="_blank"
-                        class="file-link"
-                      >
+                      <a :href="`http://localhost:8088${filePath}`" target="_blank" class="file-link">
                         <i class="fas fa-file-alt"></i>
                         {{ getFileName(filePath) }}
                       </a>
@@ -156,22 +67,12 @@
               <td>{{ formatDate(detail.created_at) }}</td>
               <td class="action-column">
                 <div class="action-buttons">
-                  <template v-if="!detail.editing">
-                    <button @click="startEditing(detail)" class="edit-btn">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button @click="confirmDeletePrompt(detail)" class="delete-btn">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </template>
-                  <template v-else>
-                    <button @click="saveChanges(detail)" class="save-btn">
-                      <i class="fas fa-save"></i>
-                    </button>
-                    <button @click="cancelEditing(detail)" class="cancel-btn">
-                      <i class="fas fa-times"></i>
-                    </button>
-                  </template>
+                  <button @click="startEditing(detail)" class="edit-btn">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button @click="confirmDeletePrompt(detail)" class="delete-btn">
+                    <i class="fas fa-trash"></i>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -181,6 +82,7 @@
       </div>
     </div>
 
+    <!-- Modal ยืนยันการลบ -->
     <div class="modal-overlay" v-if="showDeleteModal">
       <div class="modal-card delete-modal">
         <div class="modal-header delete">
@@ -195,11 +97,113 @@
             <p class="warning">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
           </div>
           <div class="modal-actions">
-            <button class="cancel-btn" @click="closeModal">
+            <button class="btn-cancel" @click="closeModal">
               <i class="fas fa-times"></i> ยกเลิก
             </button>
-            <button class="delete-btn" @click="confirmDelete">
+            <button class="btn-save delete" @click="confirmDelete">
               <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal แก้ไขข้อมูล -->
+    <div class="modal-overlay" v-if="editingDetail">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-edit"></i>
+            <h3>แก้ไขข้อมูล</h3>
+          </div>
+          <button class="close-btn" @click="cancelEditing">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <!-- ข้อมูลสำคัญ -->
+          <div class="form-group">
+            <label>ข้อมูลสำคัญ</label>
+            <textarea
+              v-model="editingDetail.editedInfo.important_info"
+              class="edit-textarea"
+              placeholder="ข้อมูลสำคัญ"
+            ></textarea>
+          </div>
+
+          <!-- เลขที่อ้างอิง -->
+          <div class="form-group">
+            <label>เลขที่อ้างอิง</label>
+            <textarea
+              v-model="editingDetail.editedInfo.reference_no"
+              class="edit-textarea"
+              placeholder="เลขที่อ้างอิง"
+            ></textarea>
+          </div>
+
+          <!-- ข้อมูลเพิ่มเติม -->
+          <div class="form-group">
+            <label>ข้อมูลเพิ่มเติม</label>
+            <textarea
+              v-model="editingDetail.editedInfo.additional_info"
+              class="edit-textarea"
+              placeholder="ข้อมูลเพิ่มเติม"
+            ></textarea>
+          </div>
+
+          <!-- ไฟล์แนบ -->
+          <div class="form-group">    
+            <label>ไฟล์แนบ:</label>
+            <div class="file-upload-container">
+              <label class="file-upload-label">
+                <i class="fas fa-cloud-upload-alt"></i>
+                เลือกไฟล์
+                <input
+                  type="file"
+                  @change="handleFileChange"
+                  multiple
+                  class="file-input"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                />
+              </label>
+            </div>
+
+            <!-- แสดงไฟล์ที่เลือกใหม่ -->
+            <div v-if="editingDetail.newFiles?.length > 0" class="selected-files">
+              <div v-for="(file, index) in editingDetail.newFiles" :key="index" class="file-item">
+                <span class="file-name">
+                  <i class="fas fa-file"></i>
+                  {{ file.name }}
+                </span>
+                <button @click="removeNewFile(index)" class="delete-file-btn">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- แสดงไฟล์ที่มีอยู่ -->
+            <div v-if="editingDetail.file_path" class="current-files">
+              <div v-for="(filePath, fileIndex) in editingDetail.file_path.split(',')"
+                :key="filePath"
+                class="file-item">
+                <a :href="`http://localhost:8088${filePath}`" target="_blank" class="file-link">
+                  <i class="fas fa-file-alt"></i>
+                  {{ getFileName(filePath) }}
+                </a>
+                <button @click="deleteFile(fileIndex)" class="delete-file-btn">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ปุ่มดำเนินการ -->
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="cancelEditing">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="btn-save" @click="saveChanges">
+              <i class="fas fa-save"></i> บันทึก
             </button>
           </div>
         </div>
@@ -229,6 +233,7 @@ export default {
       error: null,
       showDeleteModal: false,
       selectedDetail: null,
+      editingDetail: null
     };
   },
   computed: {
@@ -244,14 +249,13 @@ export default {
           (detail.additional_info &&
             detail.additional_info.toLowerCase().includes(query))
       );
-    },
+    }
   },
   methods: {
     async fetchSystems() {
       this.loading = true;
       try {
         const response = await axios.get("http://localhost:8088/api/system-records");
-        // แสดงระบบที่เปิดใช้งานทั้งหมด
         this.systems = response.data.filter(system => system.is_active === 1);
       } catch (error) {
         console.error("Error fetching systems:", error);
@@ -265,8 +269,6 @@ export default {
       
       this.loading = true;
       try {
-        console.log('Fetching details for system:', this.selectedSystemId);
-        
         const selectedSystem = this.systems.find(
           system => system.id === parseInt(this.selectedSystemId)
         );
@@ -281,7 +283,6 @@ export default {
         const response = await axios.get(
           `http://localhost:8088/api/system-details/${this.selectedSystemId}`
         );
-        console.log('Response:', response.data);
         
         if (response.data) {
           this.systemDetails = response.data;
@@ -294,35 +295,59 @@ export default {
       }
     },
     startEditing(detail) {
-      detail.editing = true;
-      detail.editedInfo = {
-        important_info: detail.important_info,
-        reference_no: detail.reference_no,
-        additional_info: detail.additional_info,
+      this.editingDetail = {
+        ...detail,
+        editedInfo: {
+          important_info: detail.important_info,
+          reference_no: detail.reference_no,
+          additional_info: detail.additional_info
+        },
+        newFiles: []
       };
     },
-    async saveChanges(detail) {
+    cancelEditing() {
+      this.editingDetail = null;
+    },
+    handleFileChange(event) {
+      const files = Array.from(event.target.files);
+      if (!this.editingDetail.newFiles) {
+        this.editingDetail.newFiles = [];
+      }
+      this.editingDetail.newFiles.push(...files);
+    },
+    removeNewFile(index) {
+      this.editingDetail.newFiles.splice(index, 1);
+    },
+    deleteFile(fileIndex) {
+      if (!confirm('คุณต้องการลบไฟล์นี้ใช่หรือไม่?')) {
+        return;
+      }
+      const filePaths = this.editingDetail.file_path.split(',');
+      filePaths.splice(fileIndex, 1);
+      this.editingDetail.file_path = filePaths.join(',');
+    },
+    async saveChanges() {
       try {
         // Validate input
-        if (!detail.editedInfo.important_info?.trim()) {
+        if (!this.editingDetail.editedInfo.important_info?.trim()) {
           this.toast.error("กรุณากรอกข้อมูลสำคัญ");
           return;
         }
 
-        if (!detail.editedInfo.reference_no?.trim()) {
+        if (!this.editingDetail.editedInfo.reference_no?.trim()) {
           this.toast.error("กรุณากรอกเลขที่อ้างอิง");
           return;
         }
 
         const formData = new FormData();
         formData.append("systemId", this.selectedSystemId);
-        formData.append("importantInfo", detail.editedInfo.important_info);
-        formData.append("referenceNo", detail.editedInfo.reference_no);
-        formData.append("additionalInfo", detail.editedInfo.additional_info || "");
+        formData.append("importantInfo", this.editingDetail.editedInfo.important_info);
+        formData.append("referenceNo", this.editingDetail.editedInfo.reference_no);
+        formData.append("additionalInfo", this.editingDetail.editedInfo.additional_info || "");
         
-        // Handle file upload - only keep the latest file
-        if (detail.newFiles && detail.newFiles.length > 0) {
-          for (const file of detail.newFiles) {
+        // Handle file upload
+        if (this.editingDetail.newFiles?.length > 0) {
+          for (const file of this.editingDetail.newFiles) {
             if (file.size > 10 * 1024 * 1024) { // 10MB limit
               this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
               return;
@@ -332,13 +357,13 @@ export default {
         }
 
         // If there are existing files and no new files are being added, keep the existing file path
-        if (detail.file_path && (!detail.newFiles || detail.newFiles.length === 0)) {
-          formData.append("existingFiles", detail.file_path);
+        if (this.editingDetail.file_path && (!this.editingDetail.newFiles || this.editingDetail.newFiles.length === 0)) {
+          formData.append("existingFiles", this.editingDetail.file_path);
         }
 
         // Send update request
         const response = await axios.put(
-          `http://localhost:8088/api/system-details/${detail.id}`,
+          `http://localhost:8088/api/system-details/${this.editingDetail.id}`,
           formData,
           {
             headers: { 
@@ -349,16 +374,8 @@ export default {
         );
 
         if (response.data.success) {
-          // Update local state
-          detail.important_info = detail.editedInfo.important_info;
-          detail.reference_no = detail.editedInfo.reference_no;
-          detail.additional_info = detail.editedInfo.additional_info;
-          detail.file_path = response.data.file_path;
-          
-          detail.editing = false;
-          detail.newFiles = [];
-          
           this.toast.success("บันทึกการแก้ไขสำเร็จ");
+          this.editingDetail = null;
           
           // Refresh data
           await this.fetchSystemDetails();
@@ -370,27 +387,6 @@ export default {
         this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
       }
     },
-    cancelEditing(detail) {
-      detail.editing = false;
-      detail.newFiles = [];
-    },
-    handleFileChange(event, detail) {
-      const files = Array.from(event.target.files);
-      let validFiles = [];
-      
-      for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
-          this.toast.error(`ไฟล์ ${file.name} มีขนาดใหญ่เกินไป (ไม่เกิน 10MB)`);
-          continue;
-        }
-        validFiles.push(file);
-      }
-      
-      if (!detail.newFiles) {
-        detail.newFiles = [];
-      }
-      detail.newFiles.push(...validFiles);
-    },
     formatDate(dateString) {
       return new Date(dateString).toLocaleString("th-TH");
     },
@@ -399,10 +395,8 @@ export default {
       try {
         const parts = filePath.split("/");
         const filename = parts[parts.length - 1];
-        // Split on the first hyphen only to separate timestamp from filename
         const firstHyphenIndex = filename.indexOf('-');
         if (firstHyphenIndex === -1) return filename;
-        // Return everything after the first hyphen
         return filename.substring(firstHyphenIndex + 1);
       } catch (error) {
         console.error("Error getting filename:", error);
@@ -413,7 +407,6 @@ export default {
       this.selectedDetail = detail;
       this.showDeleteModal = true;
     },
-    
     async confirmDelete() {
       try {
         if (!this.selectedDetail) {
@@ -441,23 +434,9 @@ export default {
       this.showDeleteModal = false;
       this.selectedDetail = null;
     },
-
     closeModal() {
       this.showDeleteModal = false;
       this.selectedDetail = null;
-    },
-
-    async deleteFile(detail, fileIndex) {
-      if (!confirm('คุณต้องการลบไฟล์นี้ใช่หรือไม่?')) {
-        return;
-      }
-
-      const filePaths = detail.file_path.split(',');
-      filePaths.splice(fileIndex, 1);
-      detail.file_path = filePaths.join(',');
-    },
-    removeNewFile(detail, index) {
-      detail.newFiles.splice(index, 1);
     }
   },
   watch: {
@@ -491,8 +470,8 @@ export default {
         this.systemDetails = [];
       }
     }
-  },
-};
+  }
+}
 </script>
 
 <style scoped>
@@ -991,36 +970,89 @@ td {
 
 .modal-actions {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
 }
 
-.cancel-btn, .delete-btn {
-  padding: 12px 24px;
-  border-radius: 10px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
+.btn-save,
+.btn-cancel {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
   transition: all 0.3s ease;
+  min-width: 120px;
+  border: none;
 }
 
-.cancel-btn {
-  background: #f5f5f5;
-  color: #666;
-}
-
-.delete-btn {
-  background: linear-gradient(135deg, #c62828, #d32f2f);
+.btn-save {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: white;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
 }
 
-.modal-actions button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+.btn-save:hover {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+}
+
+.btn-save:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.1);
+}
+
+.btn-save.delete {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.1);
+}
+
+.btn-save.delete:hover {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+  box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);
+}
+
+.btn-cancel {
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn-cancel:active {
+  transform: translateY(0);
+  background: #d1d5db;
+}
+
+.btn-save i,
+.btn-cancel i {
+  font-size: 1rem;
+}
+
+@media (max-width: 640px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .btn-save,
+  .btn-cancel {
+    width: 100%;
+    padding: 12px;
+  }
 }
 
 @keyframes modalSlideIn {
