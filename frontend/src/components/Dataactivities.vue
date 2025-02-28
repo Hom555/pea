@@ -434,6 +434,65 @@
         </div>
       </div>
     </div>
+
+    <!-- เพิ่ม modal ยืนยันการลบรูปภาพ -->
+    <div class="modal-overlay" v-if="showDeleteImageModal">
+      <div class="modal-card delete-modal image-delete-modal">
+        <div class="modal-header delete">
+          <h3><i class="fas fa-exclamation-triangle"></i> ยืนยันการลบรูปภาพ</h3>
+          <button class="close-btn" @click="closeImageDeleteModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-content">
+            <div class="image-preview-container">
+              <img :src="selectedImageForDelete" alt="รูปภาพที่จะลบ" class="image-preview" />
+            </div>
+            <p class="confirmation-text">คุณต้องการลบรูปภาพนี้ใช่หรือไม่?</p>
+            <p class="warning"><i class="fas fa-exclamation-circle"></i> การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-btn" @click="closeImageDeleteModal">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="delete-btn" @click="confirmImageDelete">
+              <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- เพิ่ม modal ยืนยันการลบเอกสาร -->
+    <div class="modal-overlay" v-if="showDeleteFileModal">
+      <div class="modal-card delete-modal file-delete-modal">
+        <div class="modal-header delete">
+          <h3><i class="fas fa-exclamation-triangle"></i> ยืนยันการลบเอกสาร</h3>
+          <button class="close-btn" @click="closeFileDeleteModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-content">
+            <div class="file-preview-container">
+              <i class="fas fa-file-alt"></i>
+              <p class="file-name">{{ getFileName(selectedFileForDelete) }}</p>
+            </div>
+            <p class="confirmation-text">คุณต้องการลบเอกสารนี้ใช่หรือไม่?</p>
+            <p class="warning"><i class="fas fa-exclamation-circle"></i> การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-btn" @click="closeFileDeleteModal">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="delete-btn" @click="confirmFileDelete">
+              <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -467,6 +526,14 @@ export default {
       showDeleteModal: false,
       selectedActivity: null,
       editedActivity: null,
+      showDeleteImageModal: false,
+      selectedImageForDelete: null,
+      selectedImageActivity: null,
+      selectedImageIndex: null,
+      showDeleteFileModal: false,
+      selectedFileForDelete: null,
+      selectedFileActivity: null,
+      selectedFileIndex: null,
     };
   },
   computed: {
@@ -561,15 +628,17 @@ export default {
         console.log('API Response:', response.data);
         
         if (Array.isArray(response.data)) {
-          // กรองข้อมูลตามแผนกของผู้ใช้
-          this.activities = response.data.filter(activity => 
-            activity.dept_change_code === this.getUserDepartment?.dept_change_code
-          );
+          //          // กรองข้อมูลตามแผนกของผู้ใช้
+          //          this.activities = response.data.filter(activity => 
+          //   activity.dept_change_code === this.getUserDepartment?.dept_change_code
+          // );
+          // แสดงข้อมูลทุกแผนก โดยไม่มีการกรอง
+          this.activities = response.data;
           
-          console.log('Filtered activities:', this.activities);
+          console.log('All activities:', this.activities);
           
           if (this.activities.length === 0) {
-            this.error = 'ไม่พบข้อมูลกิจกรรมของแผนกคุณ';
+            this.error = 'ไม่พบข้อมูลกิจกรรม';
           }
         } else {
           this.activities = [];
@@ -852,48 +921,46 @@ export default {
       this.toast.info(`เลือกรูปภาพ ${validImages.length} รูป`);
     },
     deleteFile(activity, fileIndex) {
-      if (!confirm('คุณต้องการลบไฟล์นี้ใช่หรือไม่?')) {
-        return;
-      }
-
       const filePaths = activity.file_paths ? activity.file_paths.split(',') : [];
-      const deletedFile = filePaths[fileIndex];
-      
-      // เก็บไฟล์ที่ถูกลบ
-      if (!activity.deletedFiles) {
-        activity.deletedFiles = [];
-      }
-      // ตัด http://localhost:8088 ออกจาก path
-      const cleanPath = deletedFile.replace('http://localhost:8088', '');
-      activity.deletedFiles.push(cleanPath);
-      
-      // ลบไฟล์ออกจาก array
-      filePaths.splice(fileIndex, 1);
-      activity.file_paths = filePaths.length > 0 ? filePaths.join(',') : null;
-      
-      this.toast.info("ไฟล์จะถูกลบเมื่อกดบันทึก");
+      this.selectedFileForDelete = filePaths[fileIndex];
+      this.selectedFileActivity = activity;
+      this.selectedFileIndex = fileIndex;
+      this.showDeleteFileModal = true;
     },
     deleteImage(activity, imageIndex) {
-      if (!confirm('คุณต้องการลบรูปภาพนี้ใช่หรือไม่?')) {
+      const imagePaths = activity.image_paths.split(',');
+      this.selectedImageForDelete = `http://localhost:8088${imagePaths[imageIndex].trim()}`;
+      this.selectedImageActivity = activity;
+      this.selectedImageIndex = imageIndex;
+      this.showDeleteImageModal = true;
+    },
+    closeImageDeleteModal() {
+      this.showDeleteImageModal = false;
+      this.selectedImageForDelete = null;
+      this.selectedImageActivity = null;
+      this.selectedImageIndex = null;
+    },
+    confirmImageDelete() {
+      if (!this.selectedImageActivity || this.selectedImageIndex === null) {
+        this.toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
         return;
       }
 
-      const imagePaths = activity.image_paths ? activity.image_paths.split(',') : [];
-      const deletedImage = imagePaths[imageIndex];
+      const imagePaths = this.selectedImageActivity.image_paths.split(',');
+      const deletedImage = imagePaths[this.selectedImageIndex];
       
-      // เก็บรูปภาพที่ถูกลบ
-      if (!activity.deletedImages) {
-        activity.deletedImages = [];
+      if (!this.selectedImageActivity.deletedImages) {
+        this.selectedImageActivity.deletedImages = [];
       }
-      // ตัด http://localhost:8088 ออกจาก path
-      const cleanPath = deletedImage.replace('http://localhost:8088', '');
-      activity.deletedImages.push(cleanPath);
       
-      // ลบรูปภาพออกจาก array
-      imagePaths.splice(imageIndex, 1);
-      activity.image_paths = imagePaths.length > 0 ? imagePaths.join(',') : null;
+      const cleanPath = deletedImage.trim();
+      this.selectedImageActivity.deletedImages.push(cleanPath);
+      
+      imagePaths.splice(this.selectedImageIndex, 1);
+      this.selectedImageActivity.image_paths = imagePaths.length > 0 ? imagePaths.join(',') : null;
       
       this.toast.info("รูปภาพจะถูกลบเมื่อกดบันทึก");
+      this.closeImageDeleteModal();
     },
     removeNewFile(index) {
       this.newFiles.splice(index, 1);
@@ -905,6 +972,35 @@ export default {
     },
     getImagePreview(file) {
       return URL.createObjectURL(file);
+    },
+    closeFileDeleteModal() {
+      this.showDeleteFileModal = false;
+      this.selectedFileForDelete = null;
+      this.selectedFileActivity = null;
+      this.selectedFileIndex = null;
+    },
+    confirmFileDelete() {
+      if (!this.selectedFileActivity || this.selectedFileIndex === null) {
+        this.toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+        return;
+      }
+
+      const filePaths = this.selectedFileActivity.file_paths ? this.selectedFileActivity.file_paths.split(',') : [];
+      const deletedFile = filePaths[this.selectedFileIndex];
+      
+      if (!this.selectedFileActivity.deletedFiles) {
+        this.selectedFileActivity.deletedFiles = [];
+      }
+      
+      // ตัด http://localhost:8088 ออกจาก path
+      const cleanPath = deletedFile.replace('http://localhost:8088', '');
+      this.selectedFileActivity.deletedFiles.push(cleanPath);
+      
+      filePaths.splice(this.selectedFileIndex, 1);
+      this.selectedFileActivity.file_paths = filePaths.length > 0 ? filePaths.join(',') : null;
+      
+      this.toast.info("เอกสารจะถูกลบเมื่อกดบันทึก");
+      this.closeFileDeleteModal();
     },
   },
   watch: {
@@ -1752,5 +1848,121 @@ i.fas.fa-file-alt {
     width: 100%;
     padding: 12px;
   }
+}
+
+.image-delete-modal {
+  max-width: 400px;
+}
+
+.image-preview-container {
+  width: 100%;
+  height: 250px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.confirmation-text {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  text-align: center;
+  margin: 20px 0;
+  font-weight: 500;
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc3545;
+  font-size: 0.95rem;
+  background: #fff5f5;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.warning i {
+  font-size: 1.1rem;
+}
+
+.modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.delete-btn, .cancel-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.delete-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+}
+
+.delete-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+.cancel-btn {
+  background: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+}
+
+.cancel-btn:hover {
+  background: #e2e6ea;
+  transform: translateY(-1px);
+}
+
+.file-delete-modal {
+  max-width: 400px;
+}
+
+.file-preview-container {
+  width: 100%;
+  padding: 32px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.file-preview-container i {
+  font-size: 48px;
+  color: #3498db;
+}
+
+.file-preview-container .file-name {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  text-align: center;
+  word-break: break-word;
+  margin: 0;
 }
 </style>

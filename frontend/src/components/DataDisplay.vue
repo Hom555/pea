@@ -209,6 +209,36 @@
         </div>
       </div>
     </div>
+
+    <!-- เพิ่ม modal ยืนยันการลบไฟล์ -->
+    <div class="modal-overlay" v-if="showDeleteFileModal">
+      <div class="modal-card delete-modal file-delete-modal">
+        <div class="modal-header delete">
+          <h3><i class="fas fa-exclamation-triangle"></i> ยืนยันการลบเอกสาร</h3>
+          <button class="close-btn" @click="closeFileDeleteModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-content">
+            <div class="file-preview-container">
+              <i class="fas fa-file-alt"></i>
+              <p class="file-name">{{ getFileName(selectedFileForDelete) }}</p>
+            </div>
+            <p class="confirmation-text">คุณต้องการลบเอกสารนี้ใช่หรือไม่?</p>
+            <p class="warning"><i class="fas fa-exclamation-circle"></i> การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="closeFileDeleteModal">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="btn-save delete" @click="confirmFileDelete">
+              <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -233,7 +263,10 @@ export default {
       error: null,
       showDeleteModal: false,
       selectedDetail: null,
-      editingDetail: null
+      editingDetail: null,
+      showDeleteFileModal: false,
+      selectedFileForDelete: null,
+      selectedFileIndex: null,
     };
   },
   computed: {
@@ -319,12 +352,28 @@ export default {
       this.editingDetail.newFiles.splice(index, 1);
     },
     deleteFile(fileIndex) {
-      if (!confirm('คุณต้องการลบไฟล์นี้ใช่หรือไม่?')) {
+      const filePaths = this.editingDetail.file_path.split(',');
+      this.selectedFileForDelete = filePaths[fileIndex];
+      this.selectedFileIndex = fileIndex;
+      this.showDeleteFileModal = true;
+    },
+    closeFileDeleteModal() {
+      this.showDeleteFileModal = false;
+      this.selectedFileForDelete = null;
+      this.selectedFileIndex = null;
+    },
+    confirmFileDelete() {
+      if (this.selectedFileIndex === null) {
+        this.toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
         return;
       }
+
       const filePaths = this.editingDetail.file_path.split(',');
-      filePaths.splice(fileIndex, 1);
-      this.editingDetail.file_path = filePaths.join(',');
+      filePaths.splice(this.selectedFileIndex, 1);
+      this.editingDetail.file_path = filePaths.length > 0 ? filePaths.join(',') : null;
+      
+      this.toast.info("เอกสารจะถูกลบเมื่อกดบันทึก");
+      this.closeFileDeleteModal();
     },
     async saveChanges() {
       try {
@@ -1064,5 +1113,60 @@ td {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+.file-delete-modal {
+  max-width: 400px;
+}
+
+.file-preview-container {
+  width: 100%;
+  padding: 32px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.file-preview-container i {
+  font-size: 48px;
+  color: #3498db;
+}
+
+.file-preview-container .file-name {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  text-align: center;
+  word-break: break-word;
+  margin: 0;
+}
+
+.confirmation-text {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  text-align: center;
+  margin: 20px 0;
+  font-weight: 500;
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc3545;
+  font-size: 0.95rem;
+  background: #fff5f5;
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 16px;
+}
+
+.warning i {
+  font-size: 1.1rem;
 }
 </style>
