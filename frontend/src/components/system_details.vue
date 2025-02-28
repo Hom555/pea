@@ -337,8 +337,12 @@ export default {
 <style scoped>
 .container {
   max-width: 800px;
-  margin: 1.5rem auto;
-  padding: 0 1rem;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  position: relative;
+  overflow-y: auto;
 }
 
 .form-card {
@@ -346,6 +350,9 @@ export default {
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
+  margin-bottom: 2rem;
+  height: auto;
+  overflow: visible;
 }
 
 .form-header {
@@ -582,12 +589,18 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .container {
+    padding: 10px;
+    min-height: 100vh;
+  }
+  
   .form-grid {
     grid-template-columns: 1fr;
   }
   
   .form-card {
     padding: 1rem;
+    margin-bottom: 1rem;
   }
 }
 
