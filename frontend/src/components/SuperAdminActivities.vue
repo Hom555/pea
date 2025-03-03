@@ -85,21 +85,25 @@
               </td>
               <td>
                 <div class="attachments">
-                  <div v-if="activity.file_paths" class="files">
-                    <a v-for="file in getFiles(activity.file_paths)" 
-                       :key="file.path"
-                       :href="file.path"
-                       target="_blank"
-                       class="file-link">
-                      <i :class="getFileIcon(file.path)"></i>
-                    </a>
+                  <div v-if="activity.file_paths" class="files-container">
+                    <div v-for="(file, index) in getFiles(activity.file_paths)" 
+                      :key="index"
+                      class="file-item">
+                      <a :href="file.path" target="_blank" class="file-link">
+                        <i :class="getFileIcon(file.path)"></i>
+                        {{ file.name }}
+                      </a>
+                    </div>
                   </div>
-                  <div v-if="activity.image_paths" class="images">
-                    <div v-for="image in getFiles(activity.image_paths)"
-                         :key="image.path"
-                         class="image-thumbnail"
-                         @click="showFullImage(image.path)">
-                      <img :src="image.path" :alt="image.name">
+                  <div v-if="activity.image_paths" class="images-container">
+                    <div class="image-grid">
+                      <div 
+                        v-for="(image, index) in getFiles(activity.image_paths)"
+                        :key="index"
+                        class="image-item"
+                      >
+                        <img :src="image.path" :alt="image.name" @click="showFullImage(image.path)">
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1022,27 +1026,97 @@ td {
 /* ไฟล์และรูปภาพ */
 .attachments {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.file-link {
-  color: #2196F3;
-  font-size: 1.1rem;
-}
-
-.image-thumbnail {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.image-thumbnail img {
+  flex-direction: column;
+  gap: 12px;
   width: 100%;
-  height: 100%;
+}
+
+/* ส่วนแสดงไฟล์ */
+.files-container {
+  max-height: 150px;
+  overflow-y: auto;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.files-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.files-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.files-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.files-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ส่วนแสดงรูปภาพ */
+.images-container {
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.images-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.images-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.images-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.images-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+}
+
+.image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.image-item img {
+  width: 100%;
+  height: 80px;
   object-fit: cover;
+  transition: all 0.3s ease;
+}
+
+.image-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.image-item:hover img {
+  transform: scale(1.05);
 }
 
 /* ผู้บันทึก/แก้ไข */
@@ -1508,39 +1582,17 @@ textarea.form-control {
   border-radius: 4px;
 }
 
-.file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.file-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #2196F3;
-  text-decoration: none;
-  padding: 4px 8px;
-  background: #f8f9fa;
-  border-radius: 4px;
-}
-
-.file-link:hover {
-  background: #e3f2fd;
-}
-
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
 }
 
 .image-item img {
   width: 100%;
-  height: 150px;
+  height: 80px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   transition: transform 0.2s;
 }
@@ -1875,5 +1927,19 @@ textarea.form-control {
   height: 100%;
   object-fit: cover;
   border-radius: 8px;
+}
+
+.file-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.file-link i {
+  font-size: 0.9rem;
 }
 </style> 

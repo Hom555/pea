@@ -154,45 +154,54 @@
           <!-- ไฟล์แนบ -->
           <div class="form-group">    
             <label>ไฟล์แนบ:</label>
-            <div class="file-upload-container">
-              <label class="file-upload-label">
-                <i class="fas fa-cloud-upload-alt"></i>
-                เลือกไฟล์
-                <input
-                  type="file"
-                  @change="handleFileChange"
-                  multiple
-                  class="file-input"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
-                />
-              </label>
-            </div>
-
-            <!-- แสดงไฟล์ที่เลือกใหม่ -->
-            <div v-if="editingDetail.newFiles?.length > 0" class="selected-files">
-              <div v-for="(file, index) in editingDetail.newFiles" :key="index" class="file-item">
-                <span class="file-name">
-                  <i class="fas fa-file"></i>
-                  {{ file.name }}
-                </span>
-                <button @click="removeNewFile(index)" class="delete-file-btn">
-                  <i class="fas fa-times"></i>
-                </button>
+            <div class="file-preview-box">
+              <!-- แสดงไฟล์ที่มีอยู่ -->
+              <div v-if="editingDetail.file_path" class="current-files">
+                <h4>ไฟล์ปัจจุบัน</h4>
+                <div class="file-list">
+                  <div v-for="(filePath, fileIndex) in editingDetail.file_path.split(',')"
+                    :key="filePath"
+                    class="file-item">
+                    <a :href="`http://localhost:8088${filePath}`" target="_blank" class="file-link">
+                      <i class="fas fa-file-alt"></i>
+                      {{ getFileName(filePath) }}
+                    </a>
+                    <button @click="deleteFile(fileIndex)" class="delete-file-btn">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <!-- แสดงไฟล์ที่มีอยู่ -->
-            <div v-if="editingDetail.file_path" class="current-files">
-              <div v-for="(filePath, fileIndex) in editingDetail.file_path.split(',')"
-                :key="filePath"
-                class="file-item">
-                <a :href="`http://localhost:8088${filePath}`" target="_blank" class="file-link">
-                  <i class="fas fa-file-alt"></i>
-                  {{ getFileName(filePath) }}
-                </a>
-                <button @click="deleteFile(fileIndex)" class="delete-file-btn">
-                  <i class="fas fa-trash"></i>
-                </button>
+              <!-- อัพโหลดไฟล์ใหม่ -->
+              <div class="upload-section">
+                <h4>เพิ่มไฟล์ใหม่</h4>
+                <div class="file-upload-container">
+                  <label class="file-upload-label">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    เลือกไฟล์
+                    <input
+                      type="file"
+                      @change="handleFileChange"
+                      multiple
+                      class="file-input"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                    />
+                  </label>
+                </div>
+
+                <!-- แสดงไฟล์ที่เลือกใหม่ -->
+                <div v-if="editingDetail.newFiles?.length > 0" class="selected-files">
+                  <div v-for="(file, index) in editingDetail.newFiles" :key="index" class="file-item">
+                    <span class="file-name">
+                      <i class="fas fa-file"></i>
+                      {{ file.name }}
+                    </span>
+                    <button @click="removeNewFile(index)" class="delete-file-btn">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -614,14 +623,53 @@ select:focus, .search-input:focus {
   color: #2c3e50;
   vertical-align: top;
   min-width: 150px;
+  max-height: 120px;
+  overflow-y: auto;
 }
 
-.th-important { width: 25%; }
-.th-ref { width: 20%; }
-.th-additional { width: 30%; }
+.details-table td::-webkit-scrollbar {
+  width: 6px;
+}
+
+.details-table td::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.details-table td::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.details-table td::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ปรับขนาดคอลัมน์ให้เหมาะสม */
+.th-important { 
+  width: 25%; 
+  max-width: 300px;
+}
+.th-ref { 
+  width: 20%;
+  max-width: 200px;
+}
+.th-additional { 
+  width: 30%;
+  max-width: 350px;
+}
 .th-files { width: 15%; }
 .th-date { width: 10%; }
 .th-actions { width: 100px; }
+
+/* จัดการข้อความยาว */
+.details-table td {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 12px;
+}
 
 .action-buttons {
   display: flex;
@@ -1174,5 +1222,149 @@ td {
 
 .warning i {
   font-size: 1.1rem;
+}
+
+.file-preview-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  margin-top: 10px;
+}
+
+.file-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.file-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.file-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.file-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.file-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.current-files {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.upload-section {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.current-files h4,
+.upload-section h4 {
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.file-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2563eb;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.file-link:hover {
+  background: #eff6ff;
+}
+
+.file-link i {
+  color: #3b82f6;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px;
+  background: white;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.file-item:last-child {
+  margin-bottom: 0;
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.delete-file-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-file-btn:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.file-upload-container {
+  margin: 12px 0;
+}
+
+.file-upload-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #2563eb;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.file-upload-label:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.file-upload-label:active {
+  transform: translateY(0);
+}
+
+.file-input {
+  display: none;
 }
 </style>

@@ -108,89 +108,115 @@
                   ></textarea>
                   
                   <!-- จัดการไฟล์เอกสาร -->
-                  <div class="edit-files-section">
-                    <label class="file-label">
-                      <i class="fas fa-file-upload"></i>
-                      เลือกไฟล์
-                      <input
-                        type="file"
-                        @change="handleFileChange"
-                        multiple
-                        class="file-input"
-                      />
-                    </label>
-
-                    <!-- แสดงไฟล์ที่เลือกใหม่ -->
-                    <div v-if="newFiles.length > 0" class="new-files">
-                      <div v-for="(file, index) in newFiles" :key="index" class="file-item">
-                        <i class="fas fa-file"></i>
-                        <span class="file-name">{{ file.name }}</span>
-                        <button @click="removeNewFile(index)" class="remove-btn">
-                          <i class="fas fa-times"></i>
-                        </button>
+                  <div class="file-preview-box">
+                    <!-- แสดงไฟล์ที่มีอยู่ -->
+                    <div v-if="activity.file_paths" class="current-files">
+                      <h4>ไฟล์ปัจจุบัน</h4>
+                      <div class="file-list">
+                        <div v-for="(file, index) in activity.file_paths.split(',')"
+                          :key="file"
+                          class="file-item">
+                          <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
+                            <i class="fas fa-file-alt"></i>
+                            {{ getFileName(file) }}
+                          </a>
+                          <button @click="deleteFile(activity, index)" class="delete-file-btn">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    <!-- แสดงไฟล์ที่มีอยู่ -->
-                    <div v-if="activity.file_paths" class="current-files">
-                      <div v-for="(file, index) in activity.file_paths.split(',')"
-                        :key="file"
-                        class="file-item">
-                        <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
-                          <i class="fas fa-file-alt"></i>
-                          <span class="file-name">{{ getFileName(file) }}</span>
-                        </a>
-                        <button @click="deleteFile(activity, index)" class="remove-btn">
-                          <i class="fas fa-times"></i>
-                        </button>
+                    <!-- อัพโหลดไฟล์ใหม่ -->
+                    <div class="upload-section">
+                      <h4>เพิ่มไฟล์ใหม่</h4>
+                      <div class="file-upload-container">
+                        <label class="file-upload-label">
+                          <i class="fas fa-cloud-upload-alt"></i>
+                          เลือกไฟล์
+                          <input
+                            type="file"
+                            @change="handleFileChange"
+                            multiple
+                            class="file-input"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                          />
+                        </label>
+                      </div>
+
+                      <!-- แสดงไฟล์ที่เลือกใหม่ -->
+                      <div v-if="newFiles.length > 0" class="selected-files">
+                        <div v-for="(file, index) in newFiles" :key="index" class="file-item">
+                          <span class="file-name">
+                            <i class="fas fa-file"></i>
+                            {{ file.name }}
+                          </span>
+                          <button @click="removeNewFile(index)" class="delete-file-btn">
+                            <i class="fas fa-times"></i>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <!-- จัดการรูปภาพ -->
-                  <div class="edit-images-section">
-                    <label class="file-label">
-                      <i class="fas fa-image"></i>
-                      เลือกรูปภาพ
-                      <input
-                        type="file"
-                        @change="handleImageChange"
-                        multiple
-                        accept="image/*"
-                        class="file-input"
-                      />
-                    </label>
-
-                    <!-- แสดงรูปภาพที่เลือกใหม่ -->
-                    <div v-if="newImages.length > 0" class="new-images">
-                      <div v-for="(image, index) in newImages" :key="index" class="image-item">
-                        <img :src="getImagePreview(image)" :alt="image.name" />
-                        <button @click="removeNewImage(index)" class="remove-btn">
-                          <i class="fas fa-times"></i>
-                        </button>
+                  <div class="form-group">
+                    <label>รูปภาพ</label>
+                    <div class="image-preview-box">
+                      <!-- แสดงรูปภาพที่มีอยู่ -->
+                      <div v-if="activity.image_paths" class="current-images">
+                        <h4>รูปภาพปัจจุบัน</h4>
+                        <div class="image-grid">
+                          <div v-for="(image, iIndex) in activity.image_paths.split(',')"
+                            :key="iIndex"
+                            class="image-item">
+                            <div class="image-container">
+                              <img
+                                :src="`http://localhost:8088${image.trim()}`"
+                                :alt="getFileName(image)"
+                                loading="lazy"
+                                @click="openImage(image.trim())"
+                              />
+                              <button 
+                                @click.stop="deleteImage(activity, iIndex)" 
+                                class="delete-image-btn"
+                              >
+                                <i class="fas fa-trash"></i>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- แสดงรูปภาพที่มีอยู่ -->
-                    <div v-if="activity.image_paths" class="current-images">
-                      <div
-                        v-for="(image, iIndex) in activity.image_paths.split(',')"
-                        :key="iIndex"
-                        class="thumbnail-container"
-                      >
-                        <div class="thumbnail">
-                          <img
-                            :src="`http://localhost:8088${image.trim()}`"
-                            :alt="getFileName(image)"
-                            loading="lazy"
-                            @click="openImage(image.trim())"
-                          />
-                          <button 
-                            @click.stop="deleteImage(activity, iIndex)" 
-                            class="thumbnail-remove-btn"
-                          >
-                            <i class="fas fa-times"></i>
-                          </button>
+                      <!-- อัพโหลดรูปภาพใหม่ -->
+                      <div class="upload-section">
+                        <h4>เพิ่มรูปภาพใหม่</h4>
+                        <div class="file-upload-container">
+                          <label class="file-upload-label">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            เลือกรูปภาพ
+                            <input
+                              type="file"
+                              @change="handleImageChange"
+                              multiple
+                              accept="image/*"
+                              class="file-input"
+                            />
+                          </label>
+                        </div>
+
+                        <!-- แสดงรูปภาพที่เลือกใหม่ -->
+                        <div v-if="newImages.length > 0" class="selected-images">
+                          <div class="image-grid">
+                            <div v-for="(image, index) in newImages" :key="index" class="image-item">
+                              <div class="image-container">
+                                <img :src="getImagePreview(image)" :alt="image.name" />
+                                <button @click="removeNewImage(index)" class="delete-image-btn">
+                                  <i class="fas fa-times"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -206,7 +232,9 @@
                   </div>
                 </div>
                 <div v-else>
-                  {{ activity.details }}
+                  <div class="details-container">
+                    {{ activity.details }}
+                  </div>
                 </div>
               </td>
               <td>
@@ -331,41 +359,53 @@
           <!-- จัดการไฟล์เอกสาร -->
           <div class="form-group">
             <label>เอกสารแนบ</label>
-            <div class="edit-files-section">
-              <label class="file-label">
-                <i class="fas fa-file-upload"></i>
-                เลือกไฟล์
-                <input
-                  type="file"
-                  @change="handleFileChange"
-                  multiple
-                  class="file-input"
-                />
-              </label>
-
-              <!-- แสดงไฟล์ที่เลือกใหม่ -->
-              <div v-if="newFiles.length > 0" class="new-files">
-                <div v-for="(file, index) in newFiles" :key="index" class="file-item">
-                  <i class="fas fa-file"></i>
-                  <span class="file-name">{{ file.name }}</span>
-                  <button @click="removeNewFile(index)" class="remove-btn">
-                    <i class="fas fa-times"></i>
-                  </button>
+            <div class="file-preview-box">
+              <!-- แสดงไฟล์ที่มีอยู่ -->
+              <div v-if="editedActivity?.file_paths" class="current-files">
+                <h4>ไฟล์ปัจจุบัน</h4>
+                <div class="file-list">
+                  <div v-for="(file, index) in editedActivity.file_paths.split(',')"
+                    :key="file"
+                    class="file-item">
+                    <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
+                      <i class="fas fa-file-alt"></i>
+                      {{ getFileName(file) }}
+                    </a>
+                    <button @click="deleteFile(editedActivity, index)" class="delete-file-btn">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <!-- แสดงไฟล์ที่มีอยู่ -->
-              <div v-if="editedActivity?.file_paths" class="current-files">
-                <div v-for="(file, index) in editedActivity.file_paths.split(',')"
-                  :key="file"
-                  class="file-item">
-                  <a :href="`http://localhost:8088${file}`" target="_blank" class="file-link">
-                    <i class="fas fa-file-alt"></i>
-                    <span class="file-name">{{ getFileName(file) }}</span>
-                  </a>
-                  <button @click="deleteFile(editedActivity, index)" class="remove-btn">
-                    <i class="fas fa-times"></i>
-                  </button>
+              <!-- อัพโหลดไฟล์ใหม่ -->
+              <div class="upload-section">
+                <h4>เพิ่มไฟล์ใหม่</h4>
+                <div class="file-upload-container">
+                  <label class="file-upload-label">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    เลือกไฟล์
+                    <input
+                      type="file"
+                      @change="handleFileChange"
+                      multiple
+                      class="file-input"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                    />
+                  </label>
+                </div>
+
+                <!-- แสดงไฟล์ที่เลือกใหม่ -->
+                <div v-if="newFiles.length > 0" class="selected-files">
+                  <div v-for="(file, index) in newFiles" :key="index" class="file-item">
+                    <span class="file-name">
+                      <i class="fas fa-file"></i>
+                      {{ file.name }}
+                    </span>
+                    <button @click="removeNewFile(index)" class="delete-file-btn">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -374,49 +414,60 @@
           <!-- จัดการรูปภาพ -->
           <div class="form-group">
             <label>รูปภาพ</label>
-            <div class="edit-images-section">
-              <label class="file-label">
-                <i class="fas fa-image"></i>
-                เลือกรูปภาพ
-                <input
-                  type="file"
-                  @change="handleImageChange"
-                  multiple
-                  accept="image/*"
-                  class="file-input"
-                />
-              </label>
-
-              <!-- แสดงรูปภาพที่เลือกใหม่ -->
-              <div v-if="newImages.length > 0" class="new-images">
-                <div v-for="(image, index) in newImages" :key="index" class="image-item">
-                  <img :src="getImagePreview(image)" :alt="image.name" />
-                  <button @click="removeNewImage(index)" class="remove-btn">
-                    <i class="fas fa-times"></i>
-                  </button>
+            <div class="image-preview-box">
+              <!-- แสดงรูปภาพที่มีอยู่ -->
+              <div v-if="editedActivity?.image_paths" class="current-images">
+                <!-- <h4>รูปภาพปัจจุบัน</h4> -->
+                <div class="image-grid">
+                  <div v-for="(image, iIndex) in editedActivity.image_paths.split(',')"
+                    :key="iIndex"
+                    class="image-item">
+                    <div class="image-container">
+                      <img
+                        :src="`http://localhost:8088${image.trim()}`"
+                        :alt="getFileName(image)"
+                        loading="lazy"
+                        @click="openImage(image.trim())"
+                      />
+                      <button 
+                        @click.stop="deleteImage(editedActivity, iIndex)" 
+                        class="delete-image-btn"
+                      >
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- แสดงรูปภาพที่มีอยู่ -->
-              <div v-if="editedActivity?.image_paths" class="current-images">
-                <div
-                  v-for="(image, iIndex) in editedActivity.image_paths.split(',')"
-                  :key="iIndex"
-                  class="thumbnail-container"
-                >
-                  <div class="thumbnail">
-                    <img
-                      :src="`http://localhost:8088${image.trim()}`"
-                      :alt="getFileName(image)"
-                      loading="lazy"
-                      @click="openImage(image.trim())"
+              <!-- อัพโหลดรูปภาพใหม่ -->
+              <div class="upload-section">
+                <h4>เพิ่มรูปภาพใหม่</h4>
+                <div class="file-upload-container">
+                  <label class="file-upload-label">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    เลือกรูปภาพ
+                    <input
+                      type="file"
+                      @change="handleImageChange"
+                      multiple
+                      accept="image/*"
+                      class="file-input"
                     />
-                    <button 
-                      @click.stop="deleteImage(editedActivity, iIndex)" 
-                      class="thumbnail-remove-btn"
-                    >
-                      <i class="fas fa-times"></i>
-                    </button>
+                  </label>
+                </div>
+
+                <!-- แสดงรูปภาพที่เลือกใหม่ -->
+                <div v-if="newImages.length > 0" class="selected-images">
+                  <div class="image-grid">
+                    <div v-for="(image, index) in newImages" :key="index" class="image-item">
+                      <div class="image-container">
+                        <img :src="getImagePreview(image)" :alt="image.name" />
+                        <button @click="removeNewImage(index)" class="delete-image-btn">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1253,9 +1304,30 @@ tr:hover td {
 }
 
 .image-thumbnails {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.image-thumbnails::-webkit-scrollbar {
+  width: 6px;
+}
+
+.image-thumbnails::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.image-thumbnails::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.image-thumbnails::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .thumbnail-container {
@@ -1964,5 +2036,316 @@ i.fas.fa-file-alt {
   text-align: center;
   word-break: break-word;
   margin: 0;
+}
+
+.file-preview-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  margin-top: 10px;
+}
+
+.file-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.file-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.file-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.file-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.file-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.current-files {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.upload-section {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.current-files h4,
+.upload-section h4 {
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.file-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2563eb;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.file-link:hover {
+  background: #eff6ff;
+}
+
+.file-link i {
+  color: #3b82f6;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px;
+  background: white;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.file-item:last-child {
+  margin-bottom: 0;
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.delete-file-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.delete-file-btn:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.file-upload-container {
+  margin: 12px 0;
+}
+
+.file-upload-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #2563eb;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.file-upload-label:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.file-upload-label:active {
+  transform: translateY(0);
+}
+
+.file-input {
+  display: none;
+}
+
+.selected-files {
+  margin: 15px 0;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 5px;
+}
+
+/* เพิ่ม styles ใหม่สำหรับรูปภาพ */
+.image-preview-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  margin-top: 10px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+  padding-right: 8px;
+}
+
+.image-item {
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.image-container {
+  width: 100%;
+  height: 100%;
+}
+
+.image-item img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.image-item img:hover {
+  transform: scale(1.05);
+}
+
+.delete-image-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.image-item:hover .delete-image-btn {
+  opacity: 1;
+}
+
+.delete-image-btn:hover {
+  background: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+}
+
+.image-preview-box {
+  border: none;
+  padding: 0;
+  background: transparent;
+  margin-top: 16px;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.current-images {
+  margin-bottom: 24px;
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.current-images::-webkit-scrollbar {
+  width: 6px;
+}
+
+.current-images::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.current-images::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.current-images::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.upload-section {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.details-container {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 12px;
+  margin: 0;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  line-height: 1.5;
+  color: #334155;
+  font-size: 0.95rem;
+}
+
+.details-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.details-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.details-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.details-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>
