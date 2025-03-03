@@ -13,21 +13,12 @@ const ad = require('./ad');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:8082');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
+// ตั้งค่า CORS
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:8082'],
-  credentials: true
+  origin: ['http://localhost:8080', 'http://localhost:8082', 'http://localhost:8083'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
 }));
 
 app.use(express.json());

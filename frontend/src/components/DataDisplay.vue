@@ -938,9 +938,11 @@ td {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(5px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
+  overflow-y: auto;
+  padding: 20px 0;
 }
 
 .modal-card {
@@ -950,6 +952,8 @@ td {
   max-width: 500px;
   box-shadow: 0 15px 30px rgba(0,0,0,0.2);
   animation: modalSlideIn 0.3s ease-out;
+  margin: auto;
+  position: relative;
 }
 
 .modal-header {
@@ -993,6 +997,8 @@ td {
 
 .modal-body {
   padding: 25px;
+  max-height: calc(80vh - 100px);
+  overflow-y: auto;
 }
 
 .delete-content {

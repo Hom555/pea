@@ -39,8 +39,8 @@ export default {
     async fetchStats() {
       try {
         const [totalRes, monthlyRes] = await Promise.all([
-          axios.get('http://localhost:8881/api/activities/count'),
-          axios.get('http://localhost:8881/api/activities/current-month')
+          axios.get('http://localhost:8088/api/activities/count'),
+          axios.get('http://localhost:8088/api/activities/current-month')
         ])
         
         this.totalActivities = totalRes.data.count
