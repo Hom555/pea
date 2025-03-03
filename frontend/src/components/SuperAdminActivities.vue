@@ -85,26 +85,17 @@
               </td>
               <td>
                 <div class="attachments">
-                  <div v-if="activity.file_paths" class="files-container">
-                    <div v-for="(file, index) in getFiles(activity.file_paths)" 
-                      :key="index"
-                      class="file-item">
-                      <a :href="file.path" target="_blank" class="file-link">
-                        <i :class="getFileIcon(file.path)"></i>
-                        {{ file.name }}
-                      </a>
-                    </div>
+                  <div v-if="activity.file_paths" class="attachment-button">
+                    <button @click="showFilesViewer(activity)" class="btn-attachment">
+                      <i class="fas fa-file-alt"></i>
+                      ไฟล์แนบ ({{ getFiles(activity.file_paths).length }})
+                    </button>
                   </div>
-                  <div v-if="activity.image_paths" class="images-container">
-                    <div class="image-grid">
-                      <div 
-                        v-for="(image, index) in getFiles(activity.image_paths)"
-                        :key="index"
-                        class="image-item"
-                      >
-                        <img :src="image.path" :alt="image.name" @click="showFullImage(image.path)">
-                      </div>
-                    </div>
+                  <div v-if="activity.image_paths" class="attachment-button">
+                    <button @click="showImagesViewer(activity)" class="btn-attachment">
+                      <i class="fas fa-image"></i>
+                      รูปภาพ ({{ getFiles(activity.image_paths).length }})
+                    </button>
                   </div>
                 </div>
               </td>
@@ -307,13 +298,13 @@
     <div v-if="showCreatorModal" class="creator-modal">
       <div class="creator-content">
         <div class="creator-header">
-          <h2>ข้อมูลผู้บันทึก</h2>
+          <h2><i class="fas fa-user-circle"></i> ข้อมูลผู้บันทึก</h2>
           <button @click="closeCreatorModal" class="close-btn">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="creator-info">
-          <p>ชื่อ: {{ selectedActivity.first_name }} {{ selectedActivity.last_name }}</p>
+          <p><i class="fas fa-user"></i> ชื่อ: {{ selectedActivity.first_name }} {{ selectedActivity.last_name }}</p>
         </div>
       </div>
     </div>
@@ -339,6 +330,61 @@
             <button class="delete-btn" @click="confirmDelete">
               <i class="fas fa-trash-alt"></i> ยืนยันการลบ
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- เพิ่ม modal แสดงไฟล์ -->
+    <div v-if="showFilesModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-file-alt"></i>
+            <h2>ไฟล์แนบ</h2>
+          </div>
+          <button @click="closeFilesModal" class="btn-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="file-list">
+            <a 
+              v-for="(file, index) in selectedFiles" 
+              :key="index"
+              :href="file.path"
+              target="_blank"
+              class="file-link"
+            >
+              <i class="fas fa-file-alt"></i>
+              {{ file.name }}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- เพิ่ม modal แสดงรูปภาพ -->
+    <div v-if="showImagesModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-image"></i>
+            <h2>รูปภาพ</h2>
+          </div>
+          <button @click="closeImagesModal" class="btn-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="image-grid">
+            <div 
+              v-for="(image, index) in selectedImages"
+              :key="index"
+              class="image-item"
+            >
+              <img :src="image.path" :alt="image.name" @click="showFullImage(image.path)">
+            </div>
           </div>
         </div>
       </div>
@@ -378,6 +424,10 @@ export default {
       newFiles: [],
       newImages: [],
       showDeleteModal: false,
+      showFilesModal: false,
+      showImagesModal: false,
+      selectedFiles: [],
+      selectedImages: [],
     }
   },
 
@@ -781,6 +831,30 @@ export default {
       this.showDeleteModal = false;
       this.selectedActivity = null;
     },
+
+    showFilesViewer(activity) {
+      if (activity.file_paths) {
+        this.selectedFiles = this.getFiles(activity.file_paths);
+        this.showFilesModal = true;
+      }
+    },
+
+    showImagesViewer(activity) {
+      if (activity.image_paths) {
+        this.selectedImages = this.getFiles(activity.image_paths);
+        this.showImagesModal = true;
+      }
+    },
+
+    closeFilesModal() {
+      this.showFilesModal = false;
+      this.selectedFiles = [];
+    },
+
+    closeImagesModal() {
+      this.showImagesModal = false;
+      this.selectedImages = [];
+    },
   },
 
   created() {
@@ -1027,96 +1101,38 @@ td {
 .attachments {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: 100%;
-}
-
-/* ส่วนแสดงไฟล์ */
-.files-container {
-  max-height: 150px;
-  overflow-y: auto;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.files-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.files-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.files-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.files-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* ส่วนแสดงรูปภาพ */
-.images-container {
-  max-height: 200px;
-  overflow-y: auto;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.images-container::-webkit-scrollbar {
-  width: 6px;
-}
-
-.images-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.images-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.images-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   gap: 8px;
+  padding: 4px;
 }
 
-.image-item {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.image-item img {
+.attachment-button {
   width: 100%;
-  height: 80px;
-  object-fit: cover;
-  transition: all 0.3s ease;
 }
 
-.image-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+.btn-attachment {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #334155;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.image-item:hover img {
-  transform: scale(1.05);
+.btn-attachment:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.btn-attachment i {
+  font-size: 1rem;
+  color: #64748b;
 }
 
 /* ผู้บันทึก/แก้ไข */
@@ -1656,7 +1672,8 @@ textarea.form-control {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1665,26 +1682,67 @@ textarea.form-control {
 
 .creator-content {
   background: white;
-  padding: 20px;
-  border-radius: 8px;
+  border-radius: 16px;
   width: 90%;
   max-width: 400px;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+  animation: modalSlideIn 0.3s ease-out;
 }
 
 .creator-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  padding: 20px 25px;
+  border-bottom: 1px solid #eee;
+  background: linear-gradient(135deg, #1a237e, #283593);
+  border-radius: 16px 16px 0 0;
+  color: white;
+}
+
+.creator-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.creator-header .close-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.creator-header .close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
 }
 
 .creator-info {
-  margin: 15px 0;
+  padding: 25px;
 }
 
 .creator-info p {
-  margin: 8px 0;
+  margin: 10px 0;
+  font-size: 1.1rem;
   color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.creator-info p i {
+  color: #4f46e5;
+  font-size: 1.2rem;
 }
 
 .modal-overlay {
@@ -1941,5 +1999,46 @@ textarea.form-control {
 
 .file-link i {
   font-size: 0.9rem;
+}
+
+.files-header, .images-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.files-header h4, .images-header h4 {
+  font-size: 0.95rem;
+  color: #334155;
+  margin: 0;
+}
+
+.btn-view {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #e0f2fe;
+  color: #0284c7;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-view:hover {
+  background: #bae6fd;
+  transform: translateY(-1px);
+}
+
+.more-files, .more-images {
+  color: #64748b;
+  font-size: 0.85rem;
+  padding: 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  text-align: center;
 }
 </style> 
