@@ -540,9 +540,16 @@ app.post('/api/system-details', getUserData, async (req, res) => {
     console.log('Received data:', req.body);
     console.log('Received files:', req.files);
     
-    const { systemId, importantInfo, referenceNo, additionalInfo } = req.body;
-    const userDept = req.user.dept_change_code;
-    const userDeptFull = req.user.dept_full;
+    const { 
+      systemId, 
+      importantInfo, 
+      referenceNo, 
+      additionalInfo,
+      dept_change_code,
+      dept_full,
+      first_name,
+      last_name
+    } = req.body;
 
     // ตรวจสอบข้อมูลที่จำเป็น
     if (!systemId || !importantInfo?.trim() || !referenceNo?.trim()) {
@@ -568,7 +575,7 @@ app.post('/api/system-details', getUserData, async (req, res) => {
       });
     }
 
-    if (system[0].dept_change_code !== userDept) {
+    if (system[0].dept_change_code !== dept_change_code) {
       return res.status(403).json({
         success: false,
         message: 'ไม่มีสิทธิ์เพิ่มข้อมูลให้ระบบของแผนกอื่น'
@@ -588,68 +595,56 @@ app.post('/api/system-details', getUserData, async (req, res) => {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
       console.log('Processing files:', files);
       
-      const uploadedFiles = await Promise.all(files.map(async (file) => {
-        try {
-          // แก้ไขการจัดการชื่อไฟล์ภาษาไทย
-          const timestamp = Date.now();
-          const originalName = Buffer.from(file.name, 'binary').toString('utf8');
-          const filename = `${timestamp}-${originalName}`;
-          const uploadPath = path.join(__dirname, 'uploads', filename);
-          
-          console.log('Moving file to:', uploadPath);
-          await file.mv(uploadPath);
-          console.log('File moved successfully');
-          
-          return '/uploads/' + filename;
-        } catch (error) {
-          console.error('Error processing file:', error);
-          throw error;
-        }
-      }));
+      const uploadedPaths = [];
       
-      console.log('Uploaded files:', uploadedFiles);
-      
-      // รวม path ของไฟล์เดิม (ถ้ามี) กับไฟล์ใหม่
-      if (filePath) {
-        filePath = filePath + ',' + uploadedFiles.join(',');
-      } else {
-        filePath = uploadedFiles.join(',');
+      for (const file of files) {
+        const timestamp = Date.now();
+        const fileName = `${timestamp}-${file.name}`;
+        const uploadPath = path.join(__dirname, 'uploads', fileName);
+        
+        await file.mv(uploadPath);
+        uploadedPaths.push(`/uploads/${fileName}`);
       }
+      
+      filePath = uploadedPaths.join(',');
     }
 
-    // บันทึกข้อมูล
-    const insertQuery = `
-      INSERT INTO system_details 
-      (system_id, important_info, reference_no, additional_info, file_path, dept_change_code, dept_full) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    const [result] = await conn.query(insertQuery, [
-      parseInt(systemId),
+    // เพิ่มข้อมูลลงในฐานข้อมูล
+    const [result] = await conn.query(`
+      INSERT INTO system_details (
+        system_id, 
+        important_info, 
+        reference_no, 
+        additional_info, 
+        file_path,
+        dept_change_code,
+        dept_full,
+        first_name,
+        last_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      systemId,
       importantInfo.trim(),
       referenceNo.trim(),
-      additionalInfo?.trim() || null,
+      additionalInfo?.trim() || '',
       filePath,
-      userDept,
-      userDeptFull
+      dept_change_code,
+      dept_full,
+      first_name,
+      last_name
     ]);
-
-    // ดึงข้อมูลที่เพิ่งบันทึกเพื่อส่งกลับ
-    const [newRecord] = await conn.query(`
-      SELECT * FROM system_details WHERE id = ?
-    `, [result.insertId]);
 
     res.json({
       success: true,
       message: 'บันทึกข้อมูลสำเร็จ',
-      data: newRecord[0]
+      id: result.insertId
     });
 
   } catch (error) {
     console.error('Error saving system details:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'ไม่สามารถบันทึกข้อมูลได้'
+      message: 'ไม่สามารถบันทึกข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();

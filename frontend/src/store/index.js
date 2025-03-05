@@ -5,7 +5,8 @@ export default createStore({
     systems: {
       status: {} // เก็บสถานะการใช้งานของแต่ละระบบ
     },
-    userDepartment: null
+    userDepartment: null,
+    fullName: null // เพิ่ม state สำหรับเก็บชื่อ-นามสกุล
   },
   mutations: {
     SET_SYSTEM_STATUS(state, { systemId, status }) {
@@ -13,6 +14,9 @@ export default createStore({
     },
     SET_USER_DEPARTMENT(state, department) {
       state.userDepartment = department;
+    },
+    SET_FULL_NAME(state, name) { // เพิ่ม mutation สำหรับอัพเดตชื่อ-นามสกุล
+      state.fullName = name;
     }
   },
   actions: {
@@ -21,12 +25,16 @@ export default createStore({
     },
     updateUserDepartment({ commit }, department) {
       commit('SET_USER_DEPARTMENT', department);
+    },
+    updateFullName({ commit }, name) { // เพิ่ม action สำหรับอัพเดตชื่อ-นามสกุล
+      commit('SET_FULL_NAME', name);
     }
   },
   getters: {
     isSystemActive: (state) => (systemId) => {
       return state.systems.status[systemId] !== false;
     },
-    getUserDepartment: state => state.userDepartment
+    getUserDepartment: state => state.userDepartment,
+    getFullName: state => state.fullName // เพิ่ม getter สำหรับดึงชื่อ-นามสกุล
   }
 }); 

@@ -153,7 +153,7 @@ export default {
   },
 
   computed: {
-    ...mapGetters(['getUserDepartment'])
+    ...mapGetters(['getUserDepartment', 'getFullName']),
   },
 
   methods: {
@@ -190,11 +190,18 @@ export default {
           return;
         }
 
+        // แยกชื่อ-นามสกุล
+        const [firstName, lastName] = this.getFullName.split(' ');
+
         const formData = new FormData();
         formData.append('systemId', this.selectedSystemId);
         formData.append('importantInfo', this.importantInfo.trim());
         formData.append('referenceNo', this.referenceNo.trim());
         formData.append('additionalInfo', this.additionalInfo?.trim() || '');
+        formData.append('dept_change_code', this.getUserDepartment?.dept_change_code || '');
+        formData.append('dept_full', this.getUserDepartment?.dept_full || '');
+        formData.append('first_name', firstName || ''); // เพิ่มชื่อ
+        formData.append('last_name', lastName || ''); // เพิ่มนามสกุล
 
         // เพิ่มไฟล์ทั้งหมดที่เลือกไว้
         if (this.selectedFiles && this.selectedFiles.length > 0) {

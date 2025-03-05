@@ -241,6 +241,20 @@ export default {
               fullName: `${user.title_s_desc || ''} ${user.first_name || ''} ${user.last_name || ''}`.trim(),
               department: user.dept_full || "ไม่ระบุแผนก",
             };
+
+            // เก็บข้อมูลแผนกใน store
+            this.$store.dispatch('updateUserDepartment', {
+              dept_change_code: user.dept_change_code,
+              dept_full: user.dept_full
+            });
+
+            // เก็บชื่อ-นามสกุลใน store
+            this.$store.dispatch('updateFullName', this.userData.fullName);
+
+            console.log('Updated userData:', this.userData);
+            
+            // กำหนด isAdmin ตามค่า role_id
+            this.isAdmin = this.userData.role_id === 2 || this.userData.role_id === 3;
           } catch (roleError) {
             console.error('Error fetching role:', roleError);
             this.userData = {
@@ -256,6 +270,9 @@ export default {
             dept_change_code: user.dept_change_code,
             dept_full: user.dept_full
           });
+
+          // เก็บชื่อ-นามสกุลใน store
+          this.$store.dispatch('updateFullName', this.userData.fullName);
 
           console.log('Updated userData:', this.userData);
           
