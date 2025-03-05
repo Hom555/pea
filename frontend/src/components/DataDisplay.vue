@@ -93,7 +93,8 @@
         </div>
         <div class="modal-body">
           <div class="delete-content">
-            <p>คุณต้องการลบข้อมูล "<span>{{ selectedDetail?.important_info }}</span>" ใช่หรือไม่?</p>
+            <!-- <p>คุณต้องการลบข้อมูล "<span>{{ selectedDetail?.important_info }}</span>" ใช่หรือไม่?</p> -->
+            <p>คุณต้องการลบข้อมูล "<span></span>" ใช่หรือไม่?</p>
             <p class="warning">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
           </div>
           <div class="modal-actions">

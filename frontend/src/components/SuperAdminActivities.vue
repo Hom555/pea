@@ -320,7 +320,8 @@
         </div>
         <div class="modal-body">
           <div class="delete-content">
-            <p>คุณต้องการลบกิจกรรม "<span>{{ selectedActivity?.details }}</span>" ใช่หรือไม่?</p>
+            <!-- <p>คุณต้องการลบกิจกรรม "<span>{{ selectedActivity?.details }}</span>" ใช่หรือไม่?</p> -->
+            <p>คุณต้องการลบกิจกรรม "<span></span>" ใช่หรือไม่?</p>
             <p class="warning">การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
           </div>
           <div class="modal-actions">
