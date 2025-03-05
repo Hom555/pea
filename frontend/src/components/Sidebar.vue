@@ -242,6 +242,16 @@ export default {
               department: user.dept_full || "ไม่ระบุแผนก",
             };
 
+            // เก็บข้อมูลใน localStorage
+            localStorage.setItem('userData', JSON.stringify({
+              empId: user.emp_id,
+              role_id: roleResponse.data.role_id,
+              fullName: this.userData.fullName,
+              department: user.dept_full,
+              dept_change_code: user.dept_change_code,
+              dept_full: user.dept_full
+            }));
+
             // เก็บข้อมูลแผนกใน store
             this.$store.dispatch('updateUserDepartment', {
               dept_change_code: user.dept_change_code,
