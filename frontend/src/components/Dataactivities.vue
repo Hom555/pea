@@ -2161,16 +2161,18 @@ i.fas.fa-file-alt {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: #2563eb;
-  color: white;
+  background: #f1f5f9;  /* เปลี่ยนเป็นสีเทาอ่อน */
+  color: #64748b;      /* เปลี่ยนสีตัวอักษรเป็นสีเทาเข้ม */
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 0.9rem;
+  border: 1px solid #e2e8f0;  /* เพิ่มเส้นขอบ */
 }
 
+/* เมื่อ hover ปุ่ม */
 .file-upload-label:hover {
-  background: #1d4ed8;
+  background: #e2e8f0;  /* สีเทาเข้มขึ้นเมื่อ hover */
   transform: translateY(-1px);
 }
 
