@@ -240,16 +240,13 @@
               <td>
                 <div class="file-list" v-if="!editingId || editingId !== activity.id">
                   <template v-if="activity.file_paths">
-                    <a
-                      v-for="(file, fIndex) in activity.file_paths.split(',')"
-                      :key="fIndex"
-                      :href="`http://localhost:8088${file}`"
-                      target="_blank"
-                      class="file-link"
+                    <button 
+                      @click="showFilesModal(activity)"
+                      class="view-files-btn"
                     >
-                      <i class="fas fa-file-alt"></i>
-                      <span class="file-name">{{ getFileName(file) }}</span>
-                    </a>
+                      <i class="fas fa-folder-open"></i>
+                      แสดงไฟล์ทั้งหมด ({{ activity.file_paths.split(',').length }})
+                    </button>
                   </template>
                   <span v-else class="no-files">-</span>
                 </div>
@@ -257,20 +254,13 @@
               <td>
                 <div class="image-thumbnails" v-if="!editingId || editingId !== activity.id">
                   <template v-if="activity.image_paths">
-                    <div
-                      v-for="(image, iIndex) in activity.image_paths.split(',')"
-                      :key="iIndex"
-                      class="thumbnail-container"
+                    <button 
+                      @click="showImagesModal(activity)"
+                      class="view-images-btn"
                     >
-                      <div class="thumbnail">
-                        <img
-                          :src="`http://localhost:8088${image.trim()}`"
-                          :alt="getFileName(image)"
-                          loading="lazy"
-                          @click="openImage(image.trim())"
-                        />
-                      </div>
-                    </div>
+                      <i class="fas fa-images"></i>
+                      แสดงรูปภาพทั้งหมด ({{ activity.image_paths.split(',').length }})
+                    </button>
                   </template>
                   <span v-else class="no-images">-</span>
                 </div>
@@ -544,6 +534,126 @@
         </div>
       </div>
     </div>
+
+    <!-- เพิ่ม modal แสดงรายการไฟล์ -->
+    <div class="modal-overlay" v-if="showFilesListModal">
+      <div class="modal-card files-list-modal">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-folder-open"></i>
+            <h3>รายการไฟล์ทั้งหมด</h3>
+          </div>
+          <button class="close-btn" @click="closeFilesModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="files-list-container">
+            <div v-if="selectedActivity?.file_paths" class="files-grid">
+              <div 
+                v-for="(file, index) in selectedActivity.file_paths.split(',')"
+                :key="index"
+                class="file-card"
+              >
+                <div class="file-icon">
+                  <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="file-info">
+                  <a 
+                    :href="`http://localhost:8088${file}`" 
+                    target="_blank"
+                    class="file-name"
+                  >
+                    {{ getFileName(file) }}
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-files-message">
+              <i class="fas fa-folder-open"></i>
+              <p>ไม่มีไฟล์แนบ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" v-if="showFilesImageModal">
+      <div class="modal-card files-list-modal">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-folder-open"></i>
+            <h3>รายการรูปภาพทั้งหมด</h3>
+          </div>
+          <button class="close-btn" @click="closeFilesModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="files-list-container">
+            <div v-if="selectedActivity?.image_paths" class="files-grid">
+              <div 
+                v-for="(image, index) in selectedActivity.image_paths.split(',')"
+                :key="index"
+                class="image-card"
+                @click="openImage(image.trim())"
+              >
+                <div class="image-preview">
+                  <img 
+                    :src="`http://localhost:8088${image.trim()}`"
+                    :alt="getFileName(image)"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-files-message">
+              <i class="fas fa-folder-open"></i>
+              <p>ไม่มีรูปภาพ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- เพิ่ม modal แสดงรายการรูปภาพ -->
+    <div class="modal-overlay" v-if="showImagesListModal">
+      <div class="modal-card images-list-modal">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-images"></i>
+            <h3>รายการรูปภาพทั้งหมด</h3>
+          </div>
+          <button class="close-btn" @click="closeImagesModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="images-list-container">
+            <div v-if="selectedActivity?.image_paths" class="images-grid">
+              <div 
+                v-for="(image, index) in selectedActivity.image_paths.split(',')"
+                :key="index"
+                class="image-card"
+                @click="openImage(image.trim())"
+              >
+                <div class="image-preview">
+                  <img 
+                    :src="`http://localhost:8088${image.trim()}`"
+                    :alt="getFileName(image)"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-images-message">
+              <i class="fas fa-images"></i>
+              <p>ไม่มีรูปภาพ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -585,6 +695,8 @@ export default {
       selectedFileForDelete: null,
       selectedFileActivity: null,
       selectedFileIndex: null,
+      showFilesListModal: false,
+      showImagesListModal: false,
     };
   },
   computed: {
@@ -1053,6 +1165,22 @@ export default {
       this.toast.info("เอกสารจะถูกลบเมื่อกดบันทึก");
       this.closeFileDeleteModal();
     },
+    showFilesModal(activity) {
+      this.selectedActivity = activity;
+      this.showFilesListModal = true;
+    },
+    closeFilesModal() {
+      this.showFilesListModal = false;
+      this.selectedActivity = null;
+    },
+    showImagesModal(activity) {
+      this.selectedActivity = activity;
+      this.showImagesListModal = true;
+    },
+    closeImagesModal() {
+      this.showImagesListModal = false;
+      this.selectedActivity = null;
+    },
   },
   watch: {
     selectedSystemId: {
@@ -1159,7 +1287,7 @@ export default {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: #666;
+  color: #fefeff;
 }
 
 .form-select {
@@ -2161,7 +2289,7 @@ i.fas.fa-file-alt {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: #f1f5f9;  /* เปลี่ยนเป็นสีเทาอ่อน */
+  background: #0080ff;  /* เปลี่ยนเป็นสีเทาอ่อน */
   color: #64748b;      /* เปลี่ยนสีตัวอักษรเป็นสีเทาเข้ม */
   border-radius: 6px;
   cursor: pointer;
@@ -2172,7 +2300,7 @@ i.fas.fa-file-alt {
 
 /* เมื่อ hover ปุ่ม */
 .file-upload-label:hover {
-  background: #e2e8f0;  /* สีเทาเข้มขึ้นเมื่อ hover */
+  background: #006eff;  /* สีเทาเข้มขึ้นเมื่อ hover */
   transform: translateY(-1px);
 }
 
@@ -2349,5 +2477,238 @@ i.fas.fa-file-alt {
 
 .details-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.view-files-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #e1f0fa;
+  color: #3498db;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.view-files-btn:hover {
+  background: #3498db;
+  color: white;
+}
+
+.files-list-modal {
+  max-width: 600px;
+  width: 90%;
+}
+
+.files-list-container {
+  padding: 16px;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.file-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.file-icon {
+  font-size: 2rem;
+  color: #3498db;
+  margin-bottom: 12px;
+}
+
+.file-info {
+  text-align: center;
+  width: 100%;
+}
+
+.file-name {
+  color: #2c3e50;
+  text-decoration: none;
+  font-size: 0.9rem;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.file-name:hover {
+  color: #3498db;
+  text-decoration: underline;
+}
+
+.no-files-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  color: #64748b;
+  text-align: center;
+}
+
+.no-files-message i {
+  font-size: 3rem;
+  color: #94a3b8;
+}
+
+.no-files-message p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .files-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .file-card {
+    padding: 12px;
+  }
+}
+
+.view-images-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #e1f0fa;
+  color: #3498db;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.view-images-btn:hover {
+  background: #3498db;
+  color: white;
+}
+
+.images-list-modal {
+  max-width: 900px;
+  width: 90%;
+}
+
+.images-list-container {
+  padding: 16px;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.image-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.image-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.image-preview {
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.image-card:hover .image-preview img {
+  transform: scale(1.05);
+}
+
+.modal-header {
+  background: #1e40af;
+  padding: 20px;
+  color: white;
+}
+
+.modal-header h3 {
+  color: white;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-title i {
+  font-size: 24px;
+}
+
+.close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.no-images-message {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+}
+
+.no-images-message i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #94a3b8;
+  display: block;
+}
+
+.no-images-message p {
+  font-size: 1rem;
+  margin: 0;
 }
 </style>

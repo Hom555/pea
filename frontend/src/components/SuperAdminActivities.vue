@@ -337,28 +337,42 @@
 
     <!-- เพิ่ม modal แสดงไฟล์ -->
     <div v-if="showFilesModal" class="modal">
-      <div class="modal-content">
+      <div class="modal-content files-list-modal">
         <div class="modal-header">
           <div class="modal-title">
-            <i class="fas fa-file-alt"></i>
-            <h2>ไฟล์แนบ</h2>
+            <i class="fas fa-folder-open"></i>
+            <h2>รายการไฟล์ทั้งหมด</h2>
           </div>
           <button @click="closeFilesModal" class="btn-close">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
-          <div class="file-list">
-            <a 
-              v-for="(file, index) in selectedFiles" 
-              :key="index"
-              :href="file.path"
-              target="_blank"
-              class="file-link"
-            >
-              <i class="fas fa-file-alt"></i>
-              {{ file.name }}
-            </a>
+          <div class="files-list-container">
+            <div v-if="selectedFiles?.length > 0" class="files-grid">
+              <div 
+                v-for="(file, index) in selectedFiles"
+                :key="index"
+                class="file-card"
+              >
+                <div class="file-icon">
+                  <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="file-info">
+                  <a 
+                    :href="file.path"
+                    target="_blank"
+                    class="file-name"
+                  >
+                    {{ file.name }}
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-files-message">
+              <i class="fas fa-folder-open"></i>
+              <p>ไม่มีไฟล์แนบ</p>
+            </div>
           </div>
         </div>
       </div>
@@ -2040,5 +2054,115 @@ textarea.form-control {
   background: #f1f5f9;
   border-radius: 6px;
   text-align: center;
+}
+
+.files-list-modal {
+  max-width: 900px !important;
+  width: 90% !important;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.files-list-container {
+  padding: 16px;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.file-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.file-icon {
+  font-size: 32px;
+  color: #3b82f6;
+  margin-bottom: 12px;
+}
+
+.file-info {
+  margin-top: 8px;
+}
+
+.file-name {
+  color: #334155;
+  text-decoration: none;
+  font-size: 0.9rem;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.no-files-message {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+}
+
+.no-files-message i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #94a3b8;
+  display: block;
+}
+
+.no-files-message p {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.modal-header {
+  background: #1e40af;
+  color: white;
+  padding: 20px;
+}
+
+.modal-header h2 {
+  color: white;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-header .btn-close {
+  color: white;
+  opacity: 0.8;
+}
+
+.modal-header .btn-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-title i {
+  font-size: 24px;
 }
 </style> 

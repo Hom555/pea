@@ -20,7 +20,7 @@
             <div class="stat-value">{{ totalActivities }}</div>
             <div class="stat-footer">
               <i class="fas fa-clock"></i>
-              <span>อัพเดตล่าสุด {{ currentTime }}</span>
+              <span>อัพเดตล่าสุด {{ currentTime }} </span>
             </div>
           </div>
           <div class="stat-decoration"></div>

@@ -50,18 +50,14 @@
               <td>{{ detail.reference_no }}</td>
               <td>{{ detail.additional_info || "-" }}</td>
               <td>
-                <div class="file-list">
-                  <template v-if="detail.file_path">
-                    <div v-for="(filePath, fileIndex) in detail.file_path.split(',')"
-                      :key="filePath"
-                      class="file-item">
-                      <a :href="`http://localhost:8088${filePath}`" target="_blank" class="file-link">
-                        <i class="fas fa-file-alt"></i>
-                        {{ getFileName(filePath) }}
-                      </a>
-                    </div>
-                  </template>
-                  <div v-else class="no-files">ไม่มีไฟล์แนบ</div>
+                <div class="file-actions">
+                  <button v-if="detail.file_path" 
+                    @click="showFileListModal(detail)" 
+                    class="view-files-btn">
+                    <i class="fas fa-folder-open"></i>
+                    ดูไฟล์แนบ ({{ detail.file_path.split(',').length }})
+                  </button>
+                  <span v-else class="no-files">ไม่มีไฟล์แนบ</span>
                 </div>
               </td>
               <td>{{ formatDate(detail.created_at) }}</td>
@@ -248,6 +244,49 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal แสดงรายการไฟล์ -->
+    <div class="modal-overlay" v-if="showFilesModal">
+      <div class="modal-card files-list-modal">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i class="fas fa-folder-open"></i>
+            <h3>รายการไฟล์ทั้งหมด</h3>
+          </div>
+          <button class="close-btn" @click="closeFileListModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="files-list-container">
+            <div v-if="selectedFiles?.length > 0" class="files-grid">
+              <div 
+                v-for="(filePath, index) in selectedFiles"
+                :key="index"
+                class="file-card"
+              >
+                <div class="file-icon">
+                  <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="file-info">
+                  <a 
+                    :href="`http://localhost:8088${filePath}`" 
+                    target="_blank"
+                    class="file-name"
+                  >
+                    {{ getFileName(filePath) }}
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-files-message">
+              <i class="fas fa-folder-open"></i>
+              <p>ไม่มีไฟล์แนบ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -276,6 +315,8 @@ export default {
       showDeleteFileModal: false,
       selectedFileForDelete: null,
       selectedFileIndex: null,
+      showFilesModal: false,
+      selectedFiles: [],
     };
   },
   computed: {
@@ -495,6 +536,14 @@ export default {
     closeModal() {
       this.showDeleteModal = false;
       this.selectedDetail = null;
+    },
+    showFileListModal(detail) {
+      this.selectedFiles = detail.file_path ? detail.file_path.split(',') : [];
+      this.showFilesModal = true;
+    },
+    closeFileListModal() {
+      this.showFilesModal = false;
+      this.selectedFiles = [];
     }
   },
   watch: {
@@ -1366,5 +1415,255 @@ td {
 
 .file-input {
   display: none;
+}
+
+/* เพิ่ม CSS สำหรับ file cards */
+.file-list-container {
+  padding: 8px;
+}
+
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.file-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.file-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+
+.file-icon {
+  font-size: 24px;
+  color: #3b82f6;
+  margin-bottom: 10px;
+}
+
+.file-info {
+  text-align: center;
+  width: 100%;
+}
+
+.file-info .file-name {
+  font-size: 0.9rem;
+  color: #334155;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.no-files {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-style: italic;
+}
+
+.file-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.view-files-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #0080ff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.view-files-btn:hover {
+  background: #006eff;
+  transform: translateY(-1px);
+}
+
+.view-files-btn i {
+  font-size: 1rem;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.file-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.file-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.file-link {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+
+.file-preview {
+  background: #f1f5f9;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-preview i {
+  font-size: 32px;
+  color: #3b82f6;
+}
+
+.file-details {
+  padding: 12px;
+  background: white;
+}
+
+.file-name {
+  font-size: 0.9rem;
+  color: #334155;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-files {
+  color: #64748b;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.files-list-modal {
+  max-width: 900px !important;
+}
+
+.files-list-container {
+  padding: 16px;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.file-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.file-icon {
+  font-size: 32px;
+  color: #3b82f6;
+  margin-bottom: 12px;
+}
+
+.file-info {
+  margin-top: 8px;
+}
+
+.file-name {
+  color: #334155;
+  text-decoration: none;
+  font-size: 0.9rem;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.no-files-message {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+}
+
+.no-files-message i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #94a3b8;
+}
+
+.no-files-message p {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.view-files-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #0080ff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.view-files-btn:hover {
+  background: #006eff;
+  transform: translateY(-1px);
+}
+
+.view-files-btn i {
+  font-size: 1rem;
 }
 </style>
