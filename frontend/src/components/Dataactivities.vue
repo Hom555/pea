@@ -697,6 +697,7 @@ export default {
       selectedFileIndex: null,
       showFilesListModal: false,
       showImagesListModal: false,
+      showFilesImageModal: false,  // Added this line
     };
   },
   computed: {

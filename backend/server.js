@@ -401,17 +401,19 @@ app.post('/api/system-record', getUserData, async (req, res) => {
     // ใช้ข้อมูลแผนกจาก middleware
     const dept_change_code = req.user.dept_change_code;
     const dept_full = req.user.dept_full;
+    const created_by = req.user.emp_id;
 
     // Insert new record
     const [result] = await conn.query(`
       INSERT INTO system_master 
-      (name_th, name_en, dept_change_code, dept_full, is_active) 
-      VALUES (?, ?, ?, ?, 1)
+      (name_th, name_en, dept_change_code, dept_full, created_by, is_active) 
+      VALUES (?, ?, ?, ?, ?, 1)
     `, [
       nameTH.trim(),
       nameEN.trim(),
       dept_change_code,
-      dept_full
+      dept_full,
+      created_by
     ]);
 
     // Return success response
@@ -442,38 +444,85 @@ app.post('/api/system-record', getUserData, async (req, res) => {
 });
 
 // ใช้ใน: datasystemrecord.vue
-app.put('/api/system-record/:id', async (req, res) => {
+app.put('/api/system-record/:id', getUserData, async (req, res) => {
   const id = req.params.id;
   const { nameTH, nameEN, dept_full, dept_change_code } = req.body;
   let conn;
 
   try {
     conn = await pool.getConnection();
-    const query = `
-      UPDATE system_master 
-      SET name_th = ?, 
-          name_en = ?, 
-          dept_full = ?,
-          dept_change_code = ?,
-          updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `;
+    await conn.beginTransaction();
 
-    const [result] = await conn.query(query, [nameTH, nameEN, dept_full, dept_change_code, id]);
-    
-    if (result.affectedRows === 0) {
+    // Get current record data before update
+    const [currentRecord] = await conn.query(
+      'SELECT * FROM system_master WHERE id = ?',
+      [id]
+    );
+
+    if (currentRecord.length === 0) {
       return res.status(404).json({ 
         status: 'error',
         message: 'ไม่พบข้อมูลที่ต้องการอัปเดต' 
       });
     }
 
+    // Insert into history table
+    await conn.query(
+      `INSERT INTO system_master_history 
+      (system_id, name_th_old, name_en_old, name_th_new, name_en_new, modified_by) 
+      VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        currentRecord[0].name_th,
+        currentRecord[0].name_en,
+        nameTH,
+        nameEN,
+        req.user.emp_id
+      ]
+    );
+
+    // Update the record
+    const [result] = await conn.query(
+      `UPDATE system_master 
+       SET name_th = ?, 
+           name_en = ?, 
+           dept_full = ?,
+           dept_change_code = ?,
+           updated_by = ?,
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE id = ?`,
+      [nameTH, nameEN, dept_full, dept_change_code, req.user.emp_id, id]
+    );
+    
+    if (result.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ 
+        status: 'error',
+        message: 'ไม่พบข้อมูลที่ต้องการอัปเดต' 
+      });
+    }
+
+    await conn.commit();
+
+    // Fetch updated record with user information
+    const [updatedRecord] = await conn.query(`
+      SELECT sm.*,
+             CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
+             CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name
+      FROM system_master sm
+      LEFT JOIN users u1 ON sm.created_by = u1.emp_id
+      LEFT JOIN users u2 ON sm.updated_by = u2.emp_id
+      WHERE sm.id = ?
+    `, [id]);
+
     res.json({ 
       status: 'success',
-      message: 'อัปเดตข้อมูลสำเร็จ' 
+      message: 'อัปเดตข้อมูลสำเร็จ',
+      data: updatedRecord[0]
     });
 
   } catch (error) {
+    if (conn) await conn.rollback();
     console.error('Error updating record:', error);
     res.status(500).json({ 
       status: 'error',
@@ -491,35 +540,63 @@ app.delete('/api/system-record/:id', getUserData, async (req, res) => {
     const { id } = req.params;
     
     conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    // ตรวจสอบสิทธิ์ผู้ใช้
-    const [userRole] = await conn.query(
-      'SELECT role_id FROM users WHERE emp_id = ?',
-      [req.user.emp_id]
-    );
+    try {
+      // ตรวจสอบสิทธิ์ผู้ใช้
+      const [userRole] = await conn.query(
+        'SELECT role_id FROM users WHERE emp_id = ?',
+        [req.user.emp_id]
+      );
 
-    // ถ้าไม่ใช่ Admin หรือ SuperAdmin ไม่อนุญาตให้ลบ
-    if (!userRole.length || (userRole[0].role_id !== 2 && userRole[0].role_id !== 3)) {
-      return res.status(403).json({
-        success: false,
-        message: 'ไม่มีสิทธิ์ลบข้อมูลระบบ'
+      // ถ้าไม่ใช่ Admin หรือ SuperAdmin ไม่อนุญาตให้ลบ
+      if (!userRole.length || (userRole[0].role_id !== 2 && userRole[0].role_id !== 3)) {
+        await conn.rollback();
+        return res.status(403).json({
+          success: false,
+          message: 'ไม่มีสิทธิ์ลบข้อมูลระบบ'
+        });
+      }
+
+      // ตรวจสอบว่ามีข้อมูลที่เกี่ยวข้องใน system_details หรือไม่
+      const [relatedDetails] = await conn.query(
+        'SELECT COUNT(*) as count FROM system_details WHERE system_id = ?',
+        [id]
+      );
+
+      if (relatedDetails[0].count > 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'ไม่สามารถลบระบบได้เนื่องจากมีข้อมูลที่เกี่ยวข้อง กรุณาลบข้อมูลที่เกี่ยวข้องก่อน'
+        });
+      }
+
+      // ลบข้อมูลจากตาราง system_master_history ก่อน (ถ้ามี)
+      await conn.query('DELETE FROM system_master_history WHERE system_id = ?', [id]);
+
+      // ลบข้อมูลจากตาราง system_master
+      const [result] = await conn.query('DELETE FROM system_master WHERE id = ?', [id]);
+
+      if (result.affectedRows === 0) {
+        await conn.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'ไม่พบข้อมูลที่ต้องการลบ'
+        });
+      }
+
+      await conn.commit();
+
+      res.json({
+        success: true,
+        message: 'ลบข้อมูลระบบสำเร็จ'
       });
+
+    } catch (error) {
+      await conn.rollback();
+      throw error;
     }
-
-    // ลบข้อมูลจากตาราง system_master
-    const [result] = await conn.query('DELETE FROM system_master WHERE id = ?', [id]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'ไม่พบข้อมูลที่ต้องการลบ'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: 'ลบข้อมูลระบบสำเร็จ'
-    });
 
   } catch (error) {
     console.error('Error deleting system:', error);
@@ -1770,63 +1847,88 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
     const userDept = req.user.dept_change_code;
 
     conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    // ตรวจสอบว่ากิจกรรมนี้มีอยู่จริงและเป็นของแผนกผู้ใช้หรือไม่
-    const [activity] = await conn.query(
-      'SELECT dept_change_code, file_paths, image_paths FROM activities WHERE id = ?',
-      [id]
-    );
+    try {
+      // Check if activity exists and belongs to user's department
+      const [activity] = await conn.query(
+        'SELECT dept_change_code, file_paths, image_paths FROM activities WHERE id = ?',
+        [id]
+      );
 
-    if (activity.length === 0) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'ไม่พบข้อมูลกิจกรรม'
-      });
-    }
+      if (activity.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({
+          status: 'error',
+          message: 'ไม่พบข้อมูลกิจกรรม'
+        });
+      }
 
-    // ตรวจสอบสิทธิ์การลบ (ต้องเป็นของแผนกเดียวกัน)
-    if (activity[0].dept_change_code !== userDept) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
-      });
-    }
+      // Check department permission
+      if (activity[0].dept_change_code !== userDept) {
+        await conn.rollback();
+        return res.status(403).json({
+          status: 'error',
+          message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+        });
+      }
 
-    // ลบไฟล์ที่เกี่ยวข้อง (ถ้ามี)
-    if (activity[0].file_paths) {
-      const filePaths = activity[0].file_paths.split(',');
-      filePaths.forEach(filePath => {
-        const fullPath = path.join(__dirname, filePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
+      // Delete related files if they exist
+      if (activity[0].file_paths) {
+        const filePaths = activity[0].file_paths.split(',');
+        for (const filePath of filePaths) {
+          const fullPath = path.join(__dirname, filePath);
+          if (fs.existsSync(fullPath)) {
+            try {
+              fs.unlinkSync(fullPath);
+            } catch (fileError) {
+              console.error('Error deleting file:', fileError);
+              // Continue even if file deletion fails
+            }
+          }
         }
-      });
-    }
+      }
 
-    // ลบรูปภาพที่เกี่ยวข้อง (ถ้ามี)
-    if (activity[0].image_paths) {
-      const imagePaths = activity[0].image_paths.split(',');
-      imagePaths.forEach(imagePath => {
-        const fullPath = path.join(__dirname, imagePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
+      // Delete related images if they exist
+      if (activity[0].image_paths) {
+        const imagePaths = activity[0].image_paths.split(',');
+        for (const imagePath of imagePaths) {
+          const fullPath = path.join(__dirname, imagePath);
+          if (fs.existsSync(fullPath)) {
+            try {
+              fs.unlinkSync(fullPath);
+            } catch (imageError) {
+              console.error('Error deleting image:', imageError);
+              // Continue even if image deletion fails
+            }
+          }
         }
+      }
+
+      // Delete activity history first
+      await conn.query('DELETE FROM activities_history WHERE activity_id = ?', [id]);
+
+      // Delete the activity
+      await conn.query('DELETE FROM activities WHERE id = ?', [id]);
+
+      await conn.commit();
+
+      res.json({
+        status: 'success',
+        message: 'ลบกิจกรรมสำเร็จ'
       });
+
+    } catch (innerError) {
+      await conn.rollback();
+      throw innerError;
     }
-
-    // ลบข้อมูล
-    await conn.query('DELETE FROM activities WHERE id = ?', [id]);
-
-    res.json({
-      status: 'success',
-      message: 'ลบกิจกรรมสำเร็จ'
-    });
 
   } catch (error) {
     console.error('Error deleting activity:', error);
+    if (conn) await conn.rollback();
     res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถลบกิจกรรมได้'
+      message: 'ไม่สามารถลบกิจกรรมได้ กรุณาลองใหม่อีกครั้ง'
     });
   } finally {
     if (conn) conn.release();
