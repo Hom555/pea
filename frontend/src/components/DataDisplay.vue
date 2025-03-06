@@ -513,6 +513,17 @@ export default {
           this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
           return;
         }
+
+        // Check if system has associated details
+        const checkResponse = await axios.get(
+          `http://localhost:8088/api/system-details/check/${this.selectedDetail.id}`
+        );
+
+        if (checkResponse.data.hasDetails) {
+          this.toast.error('ไม่สามารถลบข้อมูลได้ เนื่องจากมีข้อมูลที่เกี่ยวข้องอยู่');
+          this.closeModal();
+          return;
+        }
         
         const response = await axios.delete(
           `http://localhost:8088/api/system-details/${this.selectedDetail.id}`
