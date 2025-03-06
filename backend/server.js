@@ -619,9 +619,8 @@ app.post('/api/system-details', getUserData, async (req, res) => {
         file_path,
         dept_change_code,
         dept_full,
-        first_name,
-        last_name
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       systemId,
       importantInfo.trim(),
@@ -630,8 +629,7 @@ app.post('/api/system-details', getUserData, async (req, res) => {
       filePath,
       dept_change_code,
       dept_full,
-      first_name,
-      last_name
+      req.user.emp_id
     ]);
 
     res.json({
@@ -661,19 +659,14 @@ app.get('/api/system-details/:systemId', async (req, res) => {
     // ดึงข้อมูลรายละเอียดระบบ
     const [details] = await conn.query(`
       SELECT 
-        id,
-        system_id,
-        important_info,
-        reference_no,
-        additional_info,
-        file_path,
-        dept_change_code,
-        dept_full,
-        created_at,
-        updated_at
-      FROM system_details 
-      WHERE system_id = ?
-      ORDER BY created_at DESC
+        sd.*,
+        CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
+        CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name
+       FROM system_details sd
+       LEFT JOIN users u1 ON sd.created_by = u1.emp_id
+       LEFT JOIN users u2 ON sd.updated_by = u2.emp_id
+       WHERE sd.system_id = ?
+       ORDER BY sd.created_at DESC
     `, [systemId]);
 
     res.json(details);
@@ -691,94 +684,127 @@ app.get('/api/system-details/:systemId', async (req, res) => {
 app.put('/api/system-details/:id', getUserData, async (req, res) => {
   let conn;
   try {
-    const detailId = req.params.id;
-    const { systemId, importantInfo, referenceNo, additionalInfo, existingFiles } = req.body;
-    const userDept = req.user.dept_change_code;
-
-    // Validate required fields
-    if (!importantInfo?.trim() || !referenceNo?.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'กรุณากรอกข้อมูลให้ครบถ้วน'
-      });
-    }
-
     conn = await pool.getConnection();
+    await conn.beginTransaction();
 
-    // Check if detail exists and belongs to user's department
-    const [detail] = await conn.query(
-      'SELECT dept_change_code, file_path FROM system_details WHERE id = ?',
+    const detailId = req.params.id;
+    const { importantInfo, referenceNo, additionalInfo } = req.body;
+    
+    // Get current record data before update
+    const [currentRecord] = await conn.query(
+      'SELECT * FROM system_details WHERE id = ?',
       [detailId]
     );
 
-    if (detail.length === 0) {
+    if (!currentRecord || currentRecord.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'ไม่พบข้อมูลที่ต้องการแก้ไข'
       });
     }
 
-    if (detail[0].dept_change_code !== userDept) {
-      return res.status(403).json({
-        success: false,
-        message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
-      });
-    }
+    const oldRecord = currentRecord[0];
+    let filePath = oldRecord.file_path;
 
-    // Handle file upload
-    let filePath = existingFiles || detail[0].file_path || null;
-    
+    // Handle file uploads if any
     if (req.files && req.files.files) {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+      const uploadedPaths = [];
       
-      const uploadedFiles = await Promise.all(files.map(async (file) => {
+      for (const file of files) {
         const timestamp = Date.now();
-        const originalName = Buffer.from(file.name, 'binary').toString('utf8');
-        const filename = `${timestamp}-${originalName}`;
-        const uploadPath = path.join(__dirname, 'uploads', filename);
+        const fileName = `${timestamp}-${file.name}`;
+        const uploadPath = path.join(__dirname, 'uploads', fileName);
         
         await file.mv(uploadPath);
-        return '/uploads/' + filename;
-      }));
-      
-      // รวม path ของไฟล์เดิม (ถ้ามี) กับไฟล์ใหม่
-      if (filePath) {
-        filePath = filePath + ',' + uploadedFiles.join(',');
-      } else {
-        filePath = uploadedFiles.join(',');
+        uploadedPaths.push(`/uploads/${fileName}`);
       }
+      
+      filePath = oldRecord.file_path 
+        ? oldRecord.file_path + ',' + uploadedPaths.join(',')
+        : uploadedPaths.join(',');
+    } else if (req.body.existingFiles) {
+      filePath = req.body.existingFiles;
     }
 
-    // Update the record
-    const updateQuery = `
-      UPDATE system_details 
-      SET important_info = ?,
-          reference_no = ?,
-          additional_info = ?,
-          file_path = ?,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `;
+    // Insert into history table
+    await conn.query(
+      `INSERT INTO system_details_history (
+        system_details_id,
+        important_info_old,
+        important_info_new,
+        reference_no_old,
+        reference_no_new,
+        additional_info_old,
+        additional_info_new,
+        file_path_old,
+        file_path_new,
+        modified_by,
+        modified_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        detailId,
+        oldRecord.important_info,
+        importantInfo,
+        oldRecord.reference_no,
+        referenceNo,
+        oldRecord.additional_info,
+        additionalInfo,
+        oldRecord.file_path,
+        filePath,
+        req.user.emp_id
+      ]
+    );
 
-    await conn.query(updateQuery, [
-      importantInfo.trim(),
-      referenceNo.trim(),
-      additionalInfo?.trim() || '',
-      filePath,
-      detailId
-    ]);
+    // Update the record
+    await conn.query(
+      `UPDATE system_details 
+      SET 
+        important_info = ?,
+        reference_no = ?,
+        additional_info = ?,
+        file_path = ?,
+        updated_at = CURRENT_TIMESTAMP,
+        updated_by = ?
+      WHERE id = ?`,
+      [
+        importantInfo,
+        referenceNo,
+        additionalInfo || '',
+        filePath,
+        req.user.emp_id,
+        detailId
+      ]
+    );
+
+    await conn.commit();
+    
+    // Fetch updated record
+    const [updatedRecord] = await conn.query(
+      `SELECT 
+        sd.*,
+        CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
+        CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name
+       FROM system_details sd
+       LEFT JOIN users u1 ON sd.created_by = u1.emp_id
+       LEFT JOIN users u2 ON sd.updated_by = u2.emp_id
+       WHERE sd.id = ?`,
+      [detailId]
+    );
 
     res.json({
       success: true,
-      message: 'อัพเดทข้อมูลสำเร็จ',
-      file_path: filePath
+      message: 'บันทึกการแก้ไขสำเร็จ',
+      data: updatedRecord[0]
     });
 
   } catch (error) {
+    if (conn) await conn.rollback();
     console.error('Error updating system detail:', error);
     res.status(500).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการอัพเดทข้อมูล'
+      message: 'ไม่สามารถบันทึกการแก้ไขได้',
+      error: error.message
     });
   } finally {
     if (conn) conn.release();
@@ -1001,131 +1027,147 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // ตรวจสอบว่ากิจกรรมนี้เป็นของแผนกผู้ใช้หรือไม่
-    const [activity] = await conn.query(
-      'SELECT dept_change_code, file_paths, image_paths FROM activities WHERE id = ?',
+    // Get current record data before update
+    const [currentRecord] = await conn.query(
+      'SELECT * FROM activities WHERE id = ?',
       [id]
     );
 
-    if (activity.length === 0) {
+    if (currentRecord.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: 'ไม่พบข้อมูลกิจกรรม'
       });
     }
 
-    // ตรวจสอบสิทธิ์การแก้ไข (ต้องเป็นของแผนกเดียวกัน)
-    if (activity[0].dept_change_code !== userDept) {
+    // Check department permission
+    if (currentRecord[0].dept_change_code !== userDept) {
       return res.status(403).json({
         status: 'error',
         message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
       });
     }
 
-    // จัดการไฟล์ที่ถูกลบ
-    let currentFilePaths = activity[0].file_paths ? activity[0].file_paths.split(',') : [];
-    let currentImagePaths = activity[0].image_paths ? activity[0].image_paths.split(',') : [];
+    const oldRecord = currentRecord[0];
+    let newFilePaths = oldRecord.file_paths;
+    let newImagePaths = oldRecord.image_paths;
 
-    // ลบไฟล์ที่ถูกเลือก
+    // Handle removed files
     if (req.body.removedFiles) {
-      const filesToRemove = Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles];
-      filesToRemove.forEach(filePath => {
+      const removedFiles = Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles];
+      removedFiles.forEach(filePath => {
         const fullPath = path.join(__dirname, filePath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
-          console.log('Deleted file:', fullPath);
         }
-        currentFilePaths = currentFilePaths.filter(path => path !== filePath);
+        newFilePaths = oldRecord.file_paths
+          .split(',')
+          .filter(path => path !== filePath)
+          .join(',');
       });
     }
 
-    // ลบรูปภาพที่ถูกเลือก
+    // Handle removed images
     if (req.body.removedImages) {
-      const imagesToRemove = Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages];
-      imagesToRemove.forEach(imagePath => {
+      const removedImages = Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages];
+      removedImages.forEach(imagePath => {
         const fullPath = path.join(__dirname, imagePath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
-          console.log('Deleted image:', fullPath);
         }
-        currentImagePaths = currentImagePaths.filter(path => path !== imagePath);
+        newImagePaths = oldRecord.image_paths
+          .split(',')
+          .filter(path => path !== imagePath)
+          .join(',');
       });
     }
 
-    // จัดการไฟล์ใหม่
+    // Handle new file uploads
     if (req.files) {
-      // จัดการไฟล์เอกสาร
       if (req.files['files[]']) {
         const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
         for (const file of files) {
           const timestamp = Date.now();
-          const originalName = file.name;
-          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
-          const uploadPath = path.join(uploadsDir, safeName);
-          
-          try {
-            await file.mv(uploadPath);
-            currentFilePaths.push(`/uploads/${safeName}`);
-            console.log('Uploaded file:', safeName);
-          } catch (uploadError) {
-            console.error('Error uploading file:', uploadError);
-            throw new Error('ไม่สามารถอัพโหลดไฟล์ได้');
-          }
+          const fileName = `${timestamp}-${file.name}`;
+          const uploadPath = path.join(__dirname, 'uploads', fileName);
+          await file.mv(uploadPath);
+          newFilePaths = newFilePaths ? `${newFilePaths},/uploads/${fileName}` : `/uploads/${fileName}`;
         }
       }
 
-      // จัดการไฟล์รูปภาพ
       if (req.files['images[]']) {
         const images = Array.isArray(req.files['images[]']) ? req.files['images[]'] : [req.files['images[]']];
         for (const image of images) {
           const timestamp = Date.now();
-          const originalName = image.name;
-          const safeName = `${timestamp}-${encodeURIComponent(originalName)}`;
-          const uploadPath = path.join(uploadsDir, safeName);
-          
-          try {
-            await image.mv(uploadPath);
-            currentImagePaths.push(`/uploads/${safeName}`);
-            console.log('Uploaded image:', safeName);
-          } catch (uploadError) {
-            console.error('Error uploading image:', uploadError);
-            throw new Error('ไม่สามารถอัพโหลดรูปภาพได้');
-          }
+          const fileName = `${timestamp}-${image.name}`;
+          const uploadPath = path.join(__dirname, 'uploads', fileName);
+          await image.mv(uploadPath);
+          newImagePaths = newImagePaths ? `${newImagePaths},/uploads/${fileName}` : `/uploads/${fileName}`;
         }
       }
     }
 
-    // อัพเดตข้อมูลในฐานข้อมูล
-    const updateResult = await conn.query(
+    // Insert into history table
+    await conn.query(
+      `INSERT INTO activities_history (
+        activity_id,
+        important_info_old,
+        important_info_new,
+        details_old,
+        details_new,
+        file_paths_old,
+        file_paths_new,
+        image_paths_old,
+        image_paths_new,
+        modified_by,
+        modified_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        id,
+        oldRecord.important_info,
+        req.body.important_info,
+        oldRecord.details,
+        req.body.details.trim(),
+        oldRecord.file_paths,
+        newFilePaths,
+        oldRecord.image_paths,
+        newImagePaths,
+        req.user.emp_id
+      ]
+    );
+
+    // Update the record
+    await conn.query(
       `UPDATE activities 
-       SET details = ?, 
-           system_id = ?,
-           important_info = ?,
-           file_paths = ?, 
+       SET important_info = ?,
+           details = ?,
+           file_paths = ?,
            image_paths = ?,
+           updated_by = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
-        req.body.details.trim(),
-        req.body.system_id,
         req.body.important_info,
-        currentFilePaths.length > 0 ? currentFilePaths.join(',') : null,
-        currentImagePaths.length > 0 ? currentImagePaths.join(',') : null,
+        req.body.details.trim(),
+        newFilePaths,
+        newImagePaths,
+        req.user.emp_id,
         id
       ]
     );
 
-    if (updateResult[0].affectedRows === 0) {
-      throw new Error('ไม่สามารถอัพเดตข้อมูลได้');
-    }
-
     await conn.commit();
 
-    // ดึงข้อมูลที่อัพเดตแล้วเพื่อส่งกลับ
+    // Fetch updated record with user info
     const [updatedActivity] = await conn.query(
-      `SELECT a.*, sd.important_info as important_info_display
+      `SELECT a.*, 
+              CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
+              CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name,
+              u1.title_s_desc,
+              u1.dept_full as user_dept_full
        FROM activities a
-       LEFT JOIN system_details sd ON sd.id = a.important_info
+       LEFT JOIN users u1 ON a.created_by = u1.emp_id
+       LEFT JOIN users u2 ON a.updated_by = u2.emp_id
        WHERE a.id = ?`,
       [id]
     );
@@ -1141,7 +1183,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
     console.error('Error updating activity:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message || 'ไม่สามารถอัพเดตข้อมูลได้'
+      message: 'ไม่สามารถอัพเดตข้อมูลได้'
     });
   } finally {
     if (conn) conn.release();
@@ -1255,12 +1297,14 @@ app.get('/api/activities/:systemId/:importantInfoId', async (req, res) => {
       `SELECT DISTINCT
          a.*,
          sd.important_info as important_info_display,
-         COALESCE(u.first_name, '') as first_name,
-         COALESCE(u.last_name, '') as last_name,
-         COALESCE(u.title_s_desc, '') as title_s_desc,
-         COALESCE(u.dept_full, '') as creator_dept_full
+         COALESCE(u1.first_name, '') as first_name,
+         COALESCE(u1.last_name, '') as last_name,
+         COALESCE(u1.title_s_desc, '') as title_s_desc,
+         COALESCE(u1.dept_full, '') as creator_dept_full,
+         CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name
         FROM activities a
-        LEFT JOIN users u ON a.created_by = u.emp_id
+        LEFT JOIN users u1 ON a.created_by = u1.emp_id
+        LEFT JOIN users u2 ON a.updated_by = u2.emp_id
         LEFT JOIN system_details sd ON sd.id = a.important_info
         WHERE a.system_id = ? 
         AND a.important_info = ?
@@ -1299,16 +1343,18 @@ app.get('/api/activities', async (req, res) => {
     const [activities] = await conn.query(
       `SELECT DISTINCT
         a.*,
-        u.title_s_desc,
-        u.first_name,
-        u.last_name,
-        u.dept_full as user_dept_full,
+        u1.title_s_desc,
+        u1.first_name,
+        u1.last_name,
+        u1.dept_full as user_dept_full,
+        CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name,
         s.name_th as system_name,
         sd.important_info as important_info_display,
         sd.reference_no,
         sd.additional_info as system_additional_info
       FROM activities a
-      LEFT JOIN users u ON a.created_by = u.emp_id
+      LEFT JOIN users u1 ON a.created_by = u1.emp_id
+      LEFT JOIN users u2 ON a.updated_by = u2.emp_id
       LEFT JOIN system_master s ON a.system_id = s.id
       LEFT JOIN system_details sd ON sd.id = a.important_info
       GROUP BY a.id, a.created_at
@@ -2060,6 +2106,42 @@ app.get('/api/all-system-records', getUserData, async (req, res) => {
     res.status(500).json({ 
       status: 'error',
       message: 'ไม่สามารถดึงข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// === Activity History Management ===
+app.get('/api/activities/:id/history', getUserData, async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    conn = await pool.getConnection();
+
+    // Fetch activity history with user information
+    const [history] = await conn.query(`
+      SELECT 
+        ah.*,
+        CONCAT(u.first_name, ' ', u.last_name) as modified_by_name,
+        u.title_s_desc as modified_by_title,
+        u.dept_full as modified_by_dept
+      FROM activities_history ah
+      LEFT JOIN users u ON ah.modified_by = u.emp_id
+      WHERE ah.activity_id = ?
+      ORDER BY ah.modified_at DESC
+    `, [id]);
+
+    res.json({
+      status: 'success',
+      history: history
+    });
+
+  } catch (error) {
+    console.error('Error fetching activity history:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'ไม่สามารถดึงข้อมูลประวัติการแก้ไขได้'
     });
   } finally {
     if (conn) conn.release();

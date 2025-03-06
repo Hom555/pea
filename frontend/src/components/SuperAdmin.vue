@@ -233,7 +233,8 @@ export default {
         name_th: '',
         name_en: '',
         dept_full: '',
-        dept_change_code: ''
+        dept_change_code: '',
+        created_by: null
       },
       editForm: {
         name_th: '',
@@ -243,6 +244,7 @@ export default {
       },
       departments: [],
       selectedDept: null,
+      userData: null, // เพิ่ม userData สำหรับเก็บข้อมูลผู้ใช้
     };
   },
   computed: {
@@ -442,7 +444,8 @@ export default {
           nameTH: this.addForm.name_th,
           nameEN: this.addForm.name_en,
           dept_full: this.addForm.dept_full,
-          dept_change_code: this.addForm.dept_change_code
+          dept_change_code: this.addForm.dept_change_code,
+          created_by: this.userData?.emp_id
         });
         
         this.systems.unshift(response.data);
@@ -452,12 +455,22 @@ export default {
           name_th: '',
           name_en: '',
           dept_full: '',
-          dept_change_code: ''
+          dept_change_code: '',
+          created_by: null
         };
         this.toast.success('เพิ่มระบบสำเร็จ');
       } catch (error) {
         console.error('Error adding system:', error);
         this.toast.error(error.response?.data?.message || 'ไม่สามารถเพิ่มระบบได้');
+      }
+    },
+    async fetchUserData() {
+      try {
+        const response = await axios.get('http://localhost:8088/api/check-permission');
+        this.userData = response.data.data;
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        this.toast.error('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
       }
     },
     closeModal() {
@@ -470,7 +483,8 @@ export default {
         name_th: '',
         name_en: '',
         dept_full: '',
-        dept_change_code: ''
+        dept_change_code: '',
+        created_by: null
       };
       this.editForm = {
         name_th: '',
@@ -565,7 +579,8 @@ export default {
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchUserData();
     this.fetchSystems();
     this.fetchDepartments();
   }

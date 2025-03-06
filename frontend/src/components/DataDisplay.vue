@@ -41,6 +41,7 @@
               <th class="th-additional">ข้อมูลเพิ่มเติม</th>
               <th class="th-files">ไฟล์แนบ</th>
               <th class="th-date">วันที่สร้าง</th>
+              <th class="th-editor">จัดการ</th>
               <th class="th-actions"></th>
             </tr>
           </thead>
