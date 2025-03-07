@@ -65,7 +65,6 @@
               <td class="action-column">
                 <div class="action-buttons">
                   <button 
-                    v-if="canEdit(detail)"
                     @click="startEditing(detail)" 
                     class="edit-btn"
                     title="แก้ไข"
@@ -73,7 +72,6 @@
                     <i class="fas fa-edit"></i>
                   </button>
                   <button 
-                    v-if="canDelete(detail)"
                     @click="confirmDeletePrompt(detail)" 
                     class="delete-btn"
                     title="ลบ"
@@ -328,6 +326,7 @@ export default {
       selectedFileIndex: null,
       showFilesModal: false,
       selectedFiles: [],
+      userDept: null,
     };
   },
   computed: {
@@ -343,15 +342,15 @@ export default {
           (detail.additional_info &&
             detail.additional_info.toLowerCase().includes(query))
       );
+    },
+    canEditDelete() {
+      return (detail) => {
+        const userDept = this.getUserDepartment?.dept_change_code;
+        return userDept && detail.dept_change_code === userDept;
+      };
     }
   },
   methods: {
-    canEdit(detail) {
-      return detail.dept_change_code === this.getUserDepartment?.dept_change_code;
-    },
-    canDelete(detail) {
-      return detail.dept_change_code === this.getUserDepartment?.dept_change_code;
-    },
     async fetchSystems() {
       this.loading = true;
       try {
@@ -395,10 +394,6 @@ export default {
       }
     },
     startEditing(detail) {
-      if (!this.canEdit(detail)) {
-        this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
-        return;
-      }
       this.editingDetail = {
         ...detail,
         editedInfo: {
@@ -459,9 +454,9 @@ export default {
           return;
         }
 
-        // Check department permission
-        if (!this.canEdit(this.editingDetail)) {
-          this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+        // Check if user has permission to edit
+        if (!this.canEditDelete(this.editingDetail)) {
+          this.toast.error('ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น');
           return;
         }
 
@@ -470,8 +465,6 @@ export default {
         formData.append("importantInfo", this.editingDetail.editedInfo.important_info);
         formData.append("referenceNo", this.editingDetail.editedInfo.reference_no);
         formData.append("additionalInfo", this.editingDetail.editedInfo.additional_info || "");
-        formData.append("dept_change_code", this.getUserDepartment.dept_change_code);
-        formData.append("dept_full", this.getUserDepartment.dept_full);
         
         // Handle file upload
         if (this.editingDetail.newFiles?.length > 0) {
@@ -532,10 +525,6 @@ export default {
       }
     },
     confirmDeletePrompt(detail) {
-      if (!this.canDelete(detail)) {
-        this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
-        return;
-      }
       this.selectedDetail = detail;
       this.showDeleteModal = true;
     },
@@ -546,9 +535,10 @@ export default {
           return;
         }
 
-        // Check department permission
-        if (!this.canDelete(this.selectedDetail)) {
-          this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+        // Check if user has permission to delete
+        if (!this.canEditDelete(this.selectedDetail)) {
+          this.toast.error('ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น');
+          this.closeModal();
           return;
         }
 
@@ -1008,9 +998,7 @@ td {
 }
 
 .file-upload-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: inline-block;
   padding: 10px 20px;
   background-color: #3498db;
   color: white;
