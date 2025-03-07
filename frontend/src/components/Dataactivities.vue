@@ -1515,7 +1515,7 @@ tr:hover td {
 }
 
 i.fas.fa-file-alt {
-  color: #42b983;
+  color: #4c8be3;
 }
 
 .header-info {
@@ -2485,8 +2485,8 @@ i.fas.fa-file-alt {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #e1f0fa;
-  color: #3498db;
+  background: #e2e8f0;
+  color: #334155;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -2495,8 +2495,8 @@ i.fas.fa-file-alt {
 }
 
 .view-files-btn:hover {
-  background: #3498db;
-  color: white;
+  background: #cbd5e1;
+  color: #334155;
 }
 
 .files-list-modal {
@@ -2592,8 +2592,8 @@ i.fas.fa-file-alt {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #e1f0fa;
-  color: #3498db;
+  background: #e2e8f0;
+  color: #334155;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -2602,8 +2602,8 @@ i.fas.fa-file-alt {
 }
 
 .view-images-btn:hover {
-  background: #3498db;
-  color: white;
+  background: #cbd5e1;
+  color: #334155;
 }
 
 .images-list-modal {

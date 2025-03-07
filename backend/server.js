@@ -766,6 +766,8 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
     const detailId = req.params.id;
     const { importantInfo, referenceNo, additionalInfo } = req.body;
+    const userDept = req.user.dept_change_code;
+    const userRole = req.user.role_id;
     
     // Get current record data before update
     const [currentRecord] = await conn.query(
@@ -777,6 +779,14 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'ไม่พบข้อมูลที่ต้องการแก้ไข'
+      });
+    }
+
+    // Check department permission
+    if (userRole !== 3 && currentRecord[0].dept_change_code !== userDept) {
+      return res.status(403).json({
+        success: false,
+        message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
       });
     }
 
@@ -894,6 +904,7 @@ app.delete('/api/system-details/:id', getUserData, async (req, res) => {
   try {
     const { id } = req.params;
     const userDept = req.user.dept_change_code;
+    const userRole = req.user.role_id;
 
     conn = await pool.getConnection();
 
@@ -911,7 +922,8 @@ app.delete('/api/system-details/:id', getUserData, async (req, res) => {
       });
     }
 
-    if (detail[0].dept_change_code !== userDept) {
+    // Check department permission
+    if (userRole !== 3 && detail[0].dept_change_code !== userDept) {
       return res.status(403).json({
         success: false,
         message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
@@ -2047,6 +2059,7 @@ app.get('/api/departments', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
+    
     
     // ดึงเฉพาะ dept_change_code และ dept_full ที่ไม่ซ้ำกัน
     const [departments] = await conn.query(`

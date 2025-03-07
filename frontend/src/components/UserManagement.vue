@@ -799,7 +799,7 @@ td {
 }
 
 .department-badge {
-  background: #f3f4f6;
+  /* background: #f3f4f6; */
   color: #4b5563;
   padding: 0.4rem 0.8rem;
   border-radius: 6px;

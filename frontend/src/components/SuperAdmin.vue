@@ -804,8 +804,8 @@ export default {
 
 .name-en {
   color: #666;
-  font-size: 0.9rem;
-  margin-top: 5px;
+  font-size: 1.1rem;
+  font-weight: 500;
   display: block;
 }
 

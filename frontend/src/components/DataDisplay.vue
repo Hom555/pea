@@ -64,10 +64,18 @@
               <td>{{ formatDate(detail.created_at) }}</td>
               <td class="action-column">
                 <div class="action-buttons">
-                  <button @click="startEditing(detail)" class="edit-btn">
+                  <button 
+                    @click="startEditing(detail)" 
+                    class="edit-btn"
+                    v-if="canEditDetail(detail)"
+                  >
                     <i class="fas fa-edit"></i>
                   </button>
-                  <button @click="confirmDeletePrompt(detail)" class="delete-btn">
+                  <button 
+                    @click="confirmDeletePrompt(detail)" 
+                    class="delete-btn"
+                    v-if="canEditDetail(detail)"
+                  >
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
@@ -333,9 +341,20 @@ export default {
           (detail.additional_info &&
             detail.additional_info.toLowerCase().includes(query))
       );
+    },
+    userDeptCode() {
+      return this.getUserDepartment?.dept_change_code;
     }
   },
   methods: {
+    canEditDetail(detail) {
+      // Super admin (role_id = 3) can edit all
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      if (userData.role_id === 3) return true;
+      
+      // Others can only edit their own department's data
+      return detail.dept_change_code === this.userDeptCode;
+    },
     async fetchSystems() {
       this.loading = true;
       try {
@@ -484,7 +503,11 @@ export default {
         }
       } catch (error) {
         console.error("Error saving changes:", error);
-        this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
+        if (error.response?.status === 403) {
+          this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+        } else {
+          this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
+        }
       }
     },
     formatDate(dateString) {
@@ -544,7 +567,11 @@ export default {
         }
       } catch (error) {
         console.error('Error deleting detail:', error);
-        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
+        if (error.response?.status === 403) {
+          this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+        } else {
+          this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
+        }
       } finally {
         this.showDeleteModal = false;
         this.selectedDetail = null;
@@ -1666,8 +1693,8 @@ td {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #0080ff;
-  color: white;
+  background: #f1f5f9;
+  color: rgb(79, 76, 76);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -1676,7 +1703,7 @@ td {
 }
 
 .view-files-btn:hover {
-  background: #006eff;
+  background: #e2e8f0;
   transform: translateY(-1px);
 }
 

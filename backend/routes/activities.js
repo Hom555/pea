@@ -4,6 +4,42 @@ const pool = require('../config/database');
 const path = require('path');
 const fs = require('fs');
 
+// Middleware สำหรับตรวจสอบข้อมูลผู้ใช้
+const getUserData = async (req, res, next) => {
+  try {
+    // ถ้าไม่มี user id ใน request
+    if (!req.headers['user-id']) {
+      return res.status(401).json({
+        success: false,
+        message: 'กรุณาเข้าสู่ระบบ'
+      });
+    }
+
+    // ดึงข้อมูลผู้ใช้จาก database
+    const [user] = await pool.query(
+      'SELECT * FROM users WHERE emp_id = ?',
+      [req.headers['user-id']]
+    );
+
+    if (!user.length) {
+      return res.status(401).json({
+        success: false,
+        message: 'ไม่พบข้อมูลผู้ใช้'
+      });
+    }
+
+    // เพิ่มข้อมูลผู้ใช้ใน request object
+    req.user = user[0];
+    next();
+  } catch (error) {
+    console.error('Error in getUserData middleware:', error);
+    res.status(500).json({
+      success: false,
+      message: 'เกิดข้อผิดพลาดในการตรวจสอบผู้ใช้'
+    });
+  }
+};
+
 // ดึงข้อมูลระบบทั้งหมด
 router.get('/system-records', async (req, res) => {
   try {

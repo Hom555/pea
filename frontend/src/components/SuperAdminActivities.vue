@@ -2043,7 +2043,7 @@ textarea.form-control {
 }
 
 .btn-view:hover {
-  background: #bae6fd;
+  background: #fdcfba;
   transform: translateY(-1px);
 }
 
