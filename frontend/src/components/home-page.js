@@ -4,8 +4,8 @@ export default {
   name: 'HomePage',
   data() {
     return {
-      totalActivities: 6,
-      currentMonthActivities: 4,
+      totalActivities: 5,
+      currentMonthActivities: 0,
       currentTime: new Date().toLocaleTimeString('th-TH'),
       lastUpdateTime: '',
       adminActions: [

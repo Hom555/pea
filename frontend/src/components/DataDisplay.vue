@@ -514,15 +514,19 @@ export default {
           return;
         }
 
-        // Check if system has associated details
-        const checkResponse = await axios.get(
-          `http://localhost:8088/api/system-details/check/${this.selectedDetail.id}`
-        );
-
-        if (checkResponse.data.hasDetails) {
-          this.toast.error('ไม่สามารถลบข้อมูลได้ เนื่องจากมีข้อมูลที่เกี่ยวข้องอยู่');
-          this.closeModal();
-          return;
+        // ตรวจสอบว่ามีกิจกรรมที่เกี่ยวข้องหรือไม่
+        try {
+          const activitiesResponse = await axios.get(
+            `http://localhost:8088/api/activities/${this.selectedSystemId}/${this.selectedDetail.id}`
+          );
+          
+          if (activitiesResponse.data && activitiesResponse.data.length > 0) {
+            this.toast.error('ไม่สามารถลบข้อมูลได้เนื่องจากมีกิจกรรมที่เกี่ยวข้อง');
+            this.closeModal();
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking related activities:', error);
         }
         
         const response = await axios.delete(
@@ -541,9 +545,10 @@ export default {
       } catch (error) {
         console.error('Error deleting detail:', error);
         this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
+      } finally {
+        this.showDeleteModal = false;
+        this.selectedDetail = null;
       }
-      this.showDeleteModal = false;
-      this.selectedDetail = null;
     },
     closeModal() {
       this.showDeleteModal = false;

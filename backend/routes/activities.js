@@ -280,28 +280,77 @@ router.put('/activities/:id', async (req, res) => {
 
 // ลบกิจกรรม
 router.delete('/activities/:id', async (req, res) => {
+  let connection;
   try {
+    connection = await pool.getConnection();
     const activityId = req.params.id;
 
     // ตรวจสอบว่ามีกิจกรรมนี้อยู่หรือไม่
-    const [activity] = await pool.query(
+    const [activity] = await connection.query(
       'SELECT * FROM activities WHERE id = ?',
       [activityId]
     );
 
     if (!activity.length) {
-      return res.status(404).json({ message: 'ไม่พบข้อมูลกิจกรรม' });
+      return res.status(404).json({ 
+        status: 'error',
+        message: 'ไม่พบข้อมูลกิจกรรม' 
+      });
     }
 
-    await pool.query('DELETE FROM activities WHERE id = ?', [activityId]);
+    // เริ่ม transaction
+    await connection.beginTransaction();
+
+    // ลบไฟล์ที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].file_paths) {
+      const filePaths = activity[0].file_paths.split(',');
+      for (const filePath of filePaths) {
+        const fullPath = path.join(__dirname, '..', filePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      }
+    }
+
+    // ลบรูปภาพที่เกี่ยวข้อง (ถ้ามี)
+    if (activity[0].image_paths) {
+      const imagePaths = activity[0].image_paths.split(',');
+      for (const imagePath of imagePaths) {
+        const fullPath = path.join(__dirname, '..', imagePath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
+      }
+    }
+
+    // ลบข้อมูลกิจกรรม
+    await connection.query('DELETE FROM activities WHERE id = ?', [activityId]);
+
+    await connection.commit();
 
     res.json({ 
       status: 'success',
       message: 'ลบข้อมูลกิจกรรมสำเร็จ' 
     });
+
   } catch (error) {
+    if (connection) await connection.rollback();
     console.error('Error deleting activity:', error);
-    res.status(500).json({ message: 'ไม่สามารถลบข้อมูลกิจกรรมได้' });
+    
+    // ตรวจสอบ error code สำหรับ foreign key constraint
+    if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ 
+        status: 'error',
+        message: 'ไม่สามารถลบข้อมูลได้เนื่องจากมีข้อมูลที่เกี่ยวข้องอยู่' 
+      });
+    }
+
+    res.status(500).json({ 
+      status: 'error',
+      message: 'ไม่สามารถลบข้อมูลกิจกรรมได้' 
+    });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
@@ -495,6 +544,90 @@ router.get('/activities', async (req, res) => {
     });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+// ใช้ใน: SystemDetails.vue
+router.delete('/api/system-details/:id', getUserData, async (req, res) => {
+  let conn;
+  try {
+    const { id } = req.params;
+    const userDept = req.user.dept_change_code;
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    try {
+      // ตรวจสอบว่าข้อมูลนี้เป็นของแผนกผู้ใช้หรือไม่
+      const [detail] = await conn.query(`
+        SELECT dept_change_code, file_path 
+        FROM system_details 
+        WHERE id = ?
+      `, [id]);
+
+      if (detail.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({
+          success: false,
+          message: 'ไม่พบข้อมูลที่ต้องการลบ'
+        });
+      }
+
+      if (detail[0].dept_change_code !== userDept) {
+        await conn.rollback();
+        return res.status(403).json({
+          success: false,
+          message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
+        });
+      }
+
+      // ตรวจสอบว่ามีกิจกรรมที่เกี่ยวข้องหรือไม่
+      const [activities] = await conn.query(
+        'SELECT COUNT(*) as count FROM activities WHERE important_info = ?',
+        [id]
+      );
+
+      if (activities[0].count > 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'ไม่สามารถลบข้อมูลได้เนื่องจากมีกิจกรรมที่เกี่ยวข้อง'
+        });
+      }
+
+      // ลบไฟล์เก่า (ถ้ามี)
+      if (detail[0].file_path) {
+        const filePaths = detail[0].file_path.split(',');
+        filePaths.forEach(filePath => {
+          const fullPath = path.join(__dirname, '..', filePath);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        });
+      }
+
+      // ลบข้อมูล
+      await conn.query('DELETE FROM system_details WHERE id = ?', [id]);
+      await conn.commit();
+
+      res.json({
+        success: true,
+        message: 'ลบข้อมูลสำเร็จ'
+      });
+
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Error deleting system details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'ไม่สามารถลบข้อมูลได้'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

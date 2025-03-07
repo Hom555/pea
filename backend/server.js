@@ -2252,11 +2252,14 @@ app.get('/api/activities/:id/history', getUserData, async (req, res) => {
 
 // Add the new endpoint before the existing system-details endpoints
 app.get('/api/system-details/check/:id', async (req, res) => {
+  let conn;
   try {
     const systemId = req.params.id;
     
+    conn = await pool.getConnection();
+    
     // Check if there are any associated details
-    const [details] = await connection.query(
+    const [details] = await conn.query(
       'SELECT COUNT(*) as count FROM system_details WHERE system_id = ?',
       [systemId]
     );
@@ -2271,5 +2274,7 @@ app.get('/api/system-details/check/:id', async (req, res) => {
       success: false,
       message: 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูล'
     });
+  } finally {
+    if (conn) conn.release();
   }
 });
