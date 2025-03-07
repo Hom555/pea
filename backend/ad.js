@@ -7,13 +7,13 @@ app.use(express.json());
 
 // Mock Data
 const mockEmployees = [
-  {
-    emp_id: 498146444,
-    dept_change_code: "530105002000301",
-    dept_full: "แผนกพัฒนาระบบงานด้านการเงิน",
-    first_name: "วิลัย",
-    last_name: "บุญญะ"
-  },
+  // {
+  //   emp_id: 498146444,
+  //   dept_change_code: "530105002000301",
+  //   dept_full: "แผนกพัฒนาระบบงานด้านการเงิน",
+  //   first_name: "วิลัย",
+  //   last_name: "บุญญะ"
+  // },
   // {
   //   emp_id: 498146445,
   //   dept_change_code: "530105002000302",
@@ -28,13 +28,13 @@ const mockEmployees = [
   //   first_name: "สมชาย",
   //   last_name: "ใจดี"
   // },
-  //   {
-  //   emp_id: 498146441,
-  //   dept_change_code: "530105002000302",
-  //   dept_full: "แผนกการเงิน",
-  //   first_name: "ปิยะพรพร",
-  //   last_name: "สุขสวัสดิ์ดิ"
-  // },
+    {
+    emp_id: 498146441,
+    dept_change_code: "530105002000302",
+    dept_full: "แผนกการเงิน",
+    first_name: "ปิยะพรพร",
+    last_name: "สุขสวัสดิ์ดิ"
+  },
 ];
 
 // ฟังก์ชันสำหรับดึงข้อมูลพนักงาน

@@ -65,16 +65,18 @@
               <td class="action-column">
                 <div class="action-buttons">
                   <button 
+                    v-if="canEdit(detail)"
                     @click="startEditing(detail)" 
                     class="edit-btn"
-                    v-if="canEditDetail(detail)"
+                    title="แก้ไข"
                   >
                     <i class="fas fa-edit"></i>
                   </button>
                   <button 
+                    v-if="canDelete(detail)"
                     @click="confirmDeletePrompt(detail)" 
                     class="delete-btn"
-                    v-if="canEditDetail(detail)"
+                    title="ลบ"
                   >
                     <i class="fas fa-trash"></i>
                   </button>
@@ -341,19 +343,14 @@ export default {
           (detail.additional_info &&
             detail.additional_info.toLowerCase().includes(query))
       );
-    },
-    userDeptCode() {
-      return this.getUserDepartment?.dept_change_code;
     }
   },
   methods: {
-    canEditDetail(detail) {
-      // Super admin (role_id = 3) can edit all
-      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      if (userData.role_id === 3) return true;
-      
-      // Others can only edit their own department's data
-      return detail.dept_change_code === this.userDeptCode;
+    canEdit(detail) {
+      return detail.dept_change_code === this.getUserDepartment?.dept_change_code;
+    },
+    canDelete(detail) {
+      return detail.dept_change_code === this.getUserDepartment?.dept_change_code;
     },
     async fetchSystems() {
       this.loading = true;
@@ -398,6 +395,10 @@ export default {
       }
     },
     startEditing(detail) {
+      if (!this.canEdit(detail)) {
+        this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+        return;
+      }
       this.editingDetail = {
         ...detail,
         editedInfo: {
@@ -458,11 +459,19 @@ export default {
           return;
         }
 
+        // Check department permission
+        if (!this.canEdit(this.editingDetail)) {
+          this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+          return;
+        }
+
         const formData = new FormData();
         formData.append("systemId", this.selectedSystemId);
         formData.append("importantInfo", this.editingDetail.editedInfo.important_info);
         formData.append("referenceNo", this.editingDetail.editedInfo.reference_no);
         formData.append("additionalInfo", this.editingDetail.editedInfo.additional_info || "");
+        formData.append("dept_change_code", this.getUserDepartment.dept_change_code);
+        formData.append("dept_full", this.getUserDepartment.dept_full);
         
         // Handle file upload
         if (this.editingDetail.newFiles?.length > 0) {
@@ -503,11 +512,7 @@ export default {
         }
       } catch (error) {
         console.error("Error saving changes:", error);
-        if (error.response?.status === 403) {
-          this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
-        } else {
-          this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
-        }
+        this.toast.error(error.response?.data?.message || "ไม่สามารถบันทึกการแก้ไขได้");
       }
     },
     formatDate(dateString) {
@@ -527,6 +532,10 @@ export default {
       }
     },
     confirmDeletePrompt(detail) {
+      if (!this.canDelete(detail)) {
+        this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+        return;
+      }
       this.selectedDetail = detail;
       this.showDeleteModal = true;
     },
@@ -534,6 +543,12 @@ export default {
       try {
         if (!this.selectedDetail) {
           this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
+          return;
+        }
+
+        // Check department permission
+        if (!this.canDelete(this.selectedDetail)) {
+          this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
           return;
         }
 
@@ -567,11 +582,7 @@ export default {
         }
       } catch (error) {
         console.error('Error deleting detail:', error);
-        if (error.response?.status === 403) {
-          this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
-        } else {
-          this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
-        }
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบข้อมูลได้');
       } finally {
         this.showDeleteModal = false;
         this.selectedDetail = null;
@@ -997,7 +1008,9 @@ td {
 }
 
 .file-upload-label {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 20px;
   background-color: #3498db;
   color: white;

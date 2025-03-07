@@ -446,7 +446,7 @@ app.post('/api/system-record', getUserData, async (req, res) => {
 // ใช้ใน: datasystemrecord.vue
 app.put('/api/system-record/:id', getUserData, async (req, res) => {
   const id = req.params.id;
-  const { nameTH, nameEN, dept_full, dept_change_code } = req.body;
+  const { nameTH, nameEN } = req.body;
   let conn;
 
   try {
@@ -486,12 +486,10 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
       `UPDATE system_master 
        SET name_th = ?, 
            name_en = ?, 
-           dept_full = ?,
-           dept_change_code = ?,
            updated_by = ?,
            updated_at = CURRENT_TIMESTAMP 
        WHERE id = ?`,
-      [nameTH, nameEN, dept_full, dept_change_code, req.user.emp_id, id]
+      [nameTH, nameEN, req.user.emp_id, id]
     );
     
     if (result.affectedRows === 0) {
@@ -766,8 +764,6 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
     const detailId = req.params.id;
     const { importantInfo, referenceNo, additionalInfo } = req.body;
-    const userDept = req.user.dept_change_code;
-    const userRole = req.user.role_id;
     
     // Get current record data before update
     const [currentRecord] = await conn.query(
@@ -779,14 +775,6 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'ไม่พบข้อมูลที่ต้องการแก้ไข'
-      });
-    }
-
-    // Check department permission
-    if (userRole !== 3 && currentRecord[0].dept_change_code !== userDept) {
-      return res.status(403).json({
-        success: false,
-        message: 'ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น'
       });
     }
 
@@ -904,7 +892,6 @@ app.delete('/api/system-details/:id', getUserData, async (req, res) => {
   try {
     const { id } = req.params;
     const userDept = req.user.dept_change_code;
-    const userRole = req.user.role_id;
 
     conn = await pool.getConnection();
 
@@ -922,8 +909,7 @@ app.delete('/api/system-details/:id', getUserData, async (req, res) => {
       });
     }
 
-    // Check department permission
-    if (userRole !== 3 && detail[0].dept_change_code !== userDept) {
+    if (detail[0].dept_change_code !== userDept) {
       return res.status(403).json({
         success: false,
         message: 'ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น'
@@ -2060,7 +2046,6 @@ app.get('/api/departments', async (req, res) => {
   try {
     conn = await pool.getConnection();
     
-    
     // ดึงเฉพาะ dept_change_code และ dept_full ที่ไม่ซ้ำกัน
     const [departments] = await conn.query(`
       SELECT DISTINCT 
@@ -2123,13 +2108,14 @@ app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
     // Insert new record
     const [result] = await conn.query(`
       INSERT INTO system_master 
-      (name_th, name_en, dept_change_code, dept_full, is_active) 
-      VALUES (?, ?, ?, ?, 1)
+      (name_th, name_en, dept_change_code, dept_full, created_by, is_active) 
+      VALUES (?, ?, ?, ?, ?, 1)
     `, [
       nameTH.trim(),
       nameEN.trim(),
       dept_change_code,
-      dept_full
+      dept_full,
+      req.user.emp_id
     ]);
 
     // Return success response with the new record

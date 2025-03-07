@@ -14,7 +14,7 @@
             class="search-input"
           />
         </div>
-        <button v-if="userRole === 3 || userRole === 2" @click="showAddForm" class="btn-add">
+        <button v-if="userRole === 3 " @click="showAddForm" class="btn-add">
           <i class="fas fa-plus"></i> เพิ่มระบบใหม่
         </button>
       </div>
@@ -239,9 +239,7 @@ export default {
           `http://localhost:8088/api/system-record/${this.editRecordId}`,
           {
             nameTH: this.editNameTH,
-            nameEN: this.editNameEN,
-            dept_full: this.getUserDepartment.dept_full,
-            dept_change_code: this.getUserDepartment.dept_change_code
+            nameEN: this.editNameEN
           }
         );
         await this.fetchSystemRecords();
