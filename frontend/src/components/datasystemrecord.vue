@@ -14,7 +14,7 @@
             class="search-input"
           />
         </div>
-        <button v-if="userRole === 3 " @click="showAddForm" class="btn-add">
+        <button v-if="userRole === 2 || userRole === 3 " @click="showAddForm" class="btn-add">
           <i class="fas fa-plus"></i> เพิ่มระบบใหม่
         </button>
       </div>

@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-axios.get('http://localhost:3007/api/data')
+axios.get('http://localhost:3004/api/data')
   .then(response => {
     // แสดงข้อมูลทั้งหมดที่ได้รับจาก API
     console.log('Raw API Response:', JSON.stringify(response.data, null, 2));

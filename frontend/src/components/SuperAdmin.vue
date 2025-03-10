@@ -228,6 +228,7 @@ export default {
       showDeleteModal: false,
       selectedSystem: null,
       showEditModal: false,
+      selectedDept: '',
       // แยกข้อมูลสำหรับการเพิ่มและแก้ไข
       addForm: {
         name_th: '',
@@ -243,7 +244,6 @@ export default {
         dept_change_code: ''
       },
       departments: [],
-      selectedDept: null,
       userData: null, // เพิ่ม userData สำหรับเก็บข้อมูลผู้ใช้
     };
   },
@@ -450,7 +450,7 @@ export default {
         
         this.systems.unshift(response.data);
         this.showAddModal = false;
-        this.selectedDept = null;
+        this.selectedDept = '';
         this.addForm = {
           name_th: '',
           name_en: '',
@@ -477,7 +477,7 @@ export default {
       this.showAddModal = false;
       this.showEditModal = false;
       this.showDeleteModal = false;
-      this.selectedDept = null;
+      this.selectedDept = '';
       // Reset forms
       this.addForm = {
         name_th: '',
@@ -1377,6 +1377,19 @@ select {
   font-size: 1rem;
   transition: all 0.3s ease;
   background-color: white;
+  color: #333;
+}
+
+select.placeholder {
+  color: #757575;
+}
+
+select option[value=""] {
+  color: #757575;
+}
+
+select option {
+  color: #333;
 }
 
 select:focus {
