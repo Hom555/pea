@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 
 // Middleware สำหรับตรวจสอบข้อมูลผู้ใช้
+// ใช้ใน: ทุกหน้าที่ต้องการตรวจสอบสิทธิ์ผู้ใช้
+// หน้าที่: ตรวจสอบ user-id และดึงข้อมูลผู้ใช้จาก database
 const getUserData = async (req, res, next) => {
   try {
     // ถ้าไม่มี user id ใน request
@@ -40,7 +42,8 @@ const getUserData = async (req, res, next) => {
   }
 };
 
-// ดึงข้อมูลระบบทั้งหมด
+// ใช้ใน: SystemList.vue
+// หน้าที่: ดึงข้อมูลระบบทั้งหมดเพื่อแสดงในรายการ
 router.get('/system-records', async (req, res) => {
   try {
     const [systems] = await pool.query(`
@@ -55,7 +58,8 @@ router.get('/system-records', async (req, res) => {
   }
 });
 
-// ดึงข้อมูลสำคัญของระบบ
+// ใช้ใน: SystemDetails.vue
+// หน้าที่: ดึงข้อมูลสำคัญของระบบที่เลือกเพื่อแสดงรายละเอียด
 router.get('/system-details/:systemId', async (req, res) => {
   try {
     const [details] = await pool.query(`
@@ -72,7 +76,8 @@ router.get('/system-details/:systemId', async (req, res) => {
   }
 });
 
-// ดึงข้อมูลกิจกรรม
+// ใช้ใน: ActivityList.vue
+// หน้าที่: ดึงข้อมูลกิจกรรมตาม systemId และ infoId ที่เลือก
 router.get('/activities/:systemId/:infoId', async (req, res) => {
   let connection;
   try {
@@ -118,7 +123,8 @@ router.get('/activities/:systemId/:infoId', async (req, res) => {
   }
 });
 
-// อัพเดตกิจกรรม
+// ใช้ใน: ActivityEdit.vue
+// หน้าที่: อัพเดตข้อมูลกิจกรรม รวมถึงไฟล์แนบและรูปภาพ
 router.put('/activities/:id', async (req, res) => {
   let connection;
   try {
@@ -314,7 +320,8 @@ router.put('/activities/:id', async (req, res) => {
   }
 });
 
-// ลบกิจกรรม
+// ใช้ใน: ActivityList.vue
+// หน้าที่: ลบกิจกรรมและไฟล์ที่เกี่ยวข้อง
 router.delete('/activities/:id', async (req, res) => {
   let connection;
   try {
@@ -390,7 +397,8 @@ router.delete('/activities/:id', async (req, res) => {
   }
 });
 
-// เพิ่ม endpoint สำหรับบันทึกกิจกรรม
+// ใช้ใน: ActivityCreate.vue
+// หน้าที่: บันทึกกิจกรรมใหม่พร้อมไฟล์แนบและรูปภาพ
 router.post('/activities', async (req, res) => {
   let connection;
   try {
@@ -505,12 +513,14 @@ router.post('/activities', async (req, res) => {
   }
 });
 
-// เพิ่ม route test เพื่อตรวจสอบการทำงาน
+// ใช้ใน: การทดสอบ API
+// หน้าที่: ตรวจสอบว่า API ทำงานปกติ
 router.get('/test', (req, res) => {
   res.json({ message: 'Activities API is working' });
 });
 
-// เพิ่ม endpoint สำหรับดึงข้อมูลแผนก
+// ใช้ใน: DepartmentList.vue
+// หน้าที่: ดึงข้อมูลแผนกทั้งหมดเพื่อแสดงในรายการ
 router.get('/departments', async (req, res) => {
   try {
     const [departments] = await pool.query(`
@@ -528,7 +538,8 @@ router.get('/departments', async (req, res) => {
   }
 });
 
-// ปรับปรุง endpoint activities ให้รองรับการกรอง
+// ใช้ใน: ActivityDashboard.vue
+// หน้าที่: ดึงข้อมูลกิจกรรมทั้งหมดพร้อมฟิลเตอร์ตามแผนก ระบบ และข้อมูลสำคัญ
 router.get('/activities', async (req, res) => {
   let connection;
   try {
@@ -584,6 +595,7 @@ router.get('/activities', async (req, res) => {
 });
 
 // ใช้ใน: SystemDetails.vue
+// หน้าที่: ลบข้อมูลสำคัญของระบบ โดยตรวจสอบสิทธิ์และความเกี่ยวข้องกับกิจกรรม
 router.delete('/api/system-details/:id', getUserData, async (req, res) => {
   let conn;
   try {

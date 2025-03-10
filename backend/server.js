@@ -241,6 +241,8 @@ const getUserData = async (req, res, next) => {
 
 // === Authentication & User Info ===
 // ใช้ใน: ทุก Component ที่ต้องการข้อมูล User
+// ทำหน้าที่: ดึงข้อมูลผู้ใช้จาก Authentication Server (port 3007)
+// และส่งข้อมูลกลับไปให้ Component เพื่อแสดงผล
 app.get('/api/data', async (req, res) => {
   try {
     // ตรวจสอบ Authorization header
@@ -299,7 +301,9 @@ app.get('/api/data', async (req, res) => {
 });
 
 // === System Records Management ===
-// ใช้ใน: datasystemrecord.vue - สำหรับดูข้อมูลระบบ
+// ใช้ใน: datasystemrecord.vue
+// ทำหน้าที่: ดึงข้อมูลระบบทั้งหมดที่ยังเปิดใช้งานอยู่
+// แสดงรายการระบบพร้อมรายละเอียดต่างๆ เช่น ชื่อ แผนก วันที่สร้าง
 app.get('/api/system-records', getUserData, async (req, res) => {
   let conn;
   try {
@@ -335,7 +339,9 @@ app.get('/api/system-records', getUserData, async (req, res) => {
   }
 });
 
-// ใช้ใน: datasystemrecord.vue - สำหรับดูข้อมูลเฉพาะแผนก
+// ใช้ใน: datasystemrecord.vue
+// ทำหน้าที่: ดึงข้อมูลระบบเฉพาะแผนกของผู้ใช้
+// โดย Super Admin จะเห็นทุกระบบ ส่วน User/Admin ปกติจะเห็นเฉพาะแผนกตัวเอง
 app.get('/api/system-records', getUserData, async (req, res) => {
   let conn;
   try {
@@ -385,6 +391,8 @@ app.get('/api/system-records', getUserData, async (req, res) => {
 });
 
 // ใช้ใน: datasystemrecord.vue
+// ทำหน้าที่: บันทึกข้อมูลระบบใหม่
+// รับข้อมูลชื่อระบบภาษาไทยและอังกฤษ พร้อมข้อมูลแผนกจาก middleware
 app.post('/api/system-record', getUserData, async (req, res) => {
   let conn;
   try {
@@ -445,6 +453,8 @@ app.post('/api/system-record', getUserData, async (req, res) => {
 });
 
 // ใช้ใน: datasystemrecord.vue
+// ทำหน้าที่: แก้ไขข้อมูลระบบที่มีอยู่แล้ว
+// บันทึกประวัติการแก้ไขและอัพเดตข้อมูลในตาราง system_master
 app.put('/api/system-record/:id', getUserData, async (req, res) => {
   const id = req.params.id;
   const { nameTH, nameEN } = req.body;
@@ -532,7 +542,9 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
   }
 });
 
-// ใช้ใน: SuperAdmin.vue - สำหรับลบระบบ
+// ใช้ใน: SuperAdmin.vue
+// ทำหน้าที่: ลบข้อมูลระบบ
+// ตรวจสอบสิทธิ์ผู้ใช้และความเกี่ยวข้องของข้อมูลก่อนลบ
 app.delete('/api/system-record/:id', getUserData, async (req, res) => {
   let conn;
   try {
@@ -610,6 +622,8 @@ app.delete('/api/system-record/:id', getUserData, async (req, res) => {
 
 // === System Details Management ===
 // ใช้ใน: SystemDetails.vue, Dataactivities.vue
+// ทำหน้าที่: บันทึกรายละเอียดของระบบ
+// รับข้อมูลสำคัญ เลขที่อ้างอิง ข้อมูลเพิ่มเติม และไฟล์แนบ
 app.post('/api/system-details', getUserData, async (req, res) => {
   let conn;
   try {
@@ -726,6 +740,8 @@ app.post('/api/system-details', getUserData, async (req, res) => {
 });
 
 // ใช้ใน: Dataactivities.vue
+// ทำหน้าที่: ดึงรายละเอียดของระบบตาม system_id
+// แสดงข้อมูลพร้อมชื่อผู้สร้างและผู้แก้ไข
 app.get('/api/system-details/:systemId', async (req, res) => {
   let conn;
   try {
@@ -757,6 +773,8 @@ app.get('/api/system-details/:systemId', async (req, res) => {
 });
 
 // ใช้ใน: SystemDetails.vue
+// ทำหน้าที่: แก้ไขรายละเอียดของระบบ
+// บันทึกประวัติการแก้ไขและจัดการไฟล์แนบ
 app.put('/api/system-details/:id', getUserData, async (req, res) => {
   let conn;
   try {
@@ -888,6 +906,8 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 });
 
 // ใช้ใน: SystemDetails.vue
+// ทำหน้าที่: ลบข้อมูลระบบ
+// ตรวจสอบว่าข้อมูลนี้เป็นของแผนกผู้ใช้หรือไม่
 app.delete('/api/system-details/:id', getUserData, async (req, res) => {
   let conn;
   try {
@@ -1363,6 +1383,8 @@ app.put('/api/Superactivities/:id', async (req, res) => {
 });
 
 // ใช้ใน: Dataactivities.vue
+// ทำหน้าที่: ดึงข้อมูลกิจกรรมตาม systemId และ importantInfoId
+// แสดงรายการกิจกรรมพร้อมข้อมูลผู้สร้างและผู้แก้ไข
 app.get('/api/activities/:systemId/:importantInfoId', async (req, res) => {
   let conn;
   try {
@@ -1411,6 +1433,8 @@ app.get('/api/activities/:systemId/:importantInfoId', async (req, res) => {
 });
 
 // ใช้ใน: Dataactivities.vue
+// ทำหน้าที่: ดึงข้อมูลกิจกรรมทั้งหมด
+// แสดงรายการกิจกรรมพร้อมข้อมูลระบบและผู้เกี่ยวข้อง
 app.get('/api/activities', async (req, res) => {
   let conn;
   try {
@@ -1460,6 +1484,8 @@ app.get('/api/activities', async (req, res) => {
 
 // === Admin Management ===
 // ใช้ใน: SuperAdmin.vue, UserManagement.vue
+// ทำหน้าที่: บันทึกหรืออัพเดตสิทธิ์ผู้ใช้งาน
+// กำหนดบทบาทเป็น User, Admin, หรือ Super Admin
 app.post('/api/save-admin-role', async (req, res) => {
   let conn;
   try {
@@ -1558,6 +1584,8 @@ app.post('/api/save-admin-role', async (req, res) => {
 });
 
 // ใช้ใน: SuperAdmin.vue, UserManagement.vue
+// ทำหน้าที่: ลบสิทธิ์ผู้ดูแลระบบ
+// เปลี่ยนสิทธิ์เป็นผู้ใช้งานทั่วไป (role_id = 1)
 app.delete('/api/remove-admin-role/:emp_id', async (req, res) => {
   let conn;
   try {
@@ -1617,6 +1645,8 @@ app.delete('/api/remove-admin-role/:emp_id', async (req, res) => {
 });
 
 // ใช้ใน: SuperAdmin.vue, UserManagement.vue
+// ทำหน้าที่: ดึงข้อมูลผู้ใช้ทั้งหมด
+// รวมข้อมูลจากระบบหลัก (AD) และตาราง users
 app.get('/api/admin-users', async (req, res) => {
   let conn;
   try {
@@ -1671,6 +1701,8 @@ app.get('/api/admin-users', async (req, res) => {
 
 // === System Status Management ===
 // ใช้ใน: datasystemrecord.vue
+// ทำหน้าที่: เปิด/ปิดการใช้งานระบบ
+// เฉพาะ Admin และ Super Admin เท่านั้นที่สามารถใช้งานได้
 app.put('/api/system-records/:id/toggle-status', getUserData, async (req, res) => {
   let conn;
   try {
@@ -1738,6 +1770,8 @@ app.put('/api/system-records/:id/toggle-status', getUserData, async (req, res) =
 
 // === Connection Check ===
 // ใช้ใน: ทุก Component ที่ต้องการตรวจสอบการเชื่อมต่อ
+// ทำหน้าที่: ตรวจสอบการเชื่อมต่อกับ server
+// และส่งข้อมูลแผนกของผู้ใช้กลับไป
 app.get('/api/check-connection', getUserData, (req, res) => {
   res.json({ 
     success: true, 
@@ -1750,6 +1784,9 @@ app.get('/api/check-connection', getUserData, (req, res) => {
 });
 
 // === Permission Check ===
+// ใช้ใน: ทุก Component ที่ต้องการตรวจสอบสิทธิ์
+// ทำหน้าที่: ตรวจสอบสิทธิ์ผู้ใช้งาน
+// ส่งข้อมูล role_id และสถานะการเป็น admin กลับไป
 app.get('/api/check-permission', getUserData, async (req, res) => {
   let conn;
   try {
@@ -1803,6 +1840,8 @@ app.get('/api/check-permission', getUserData, async (req, res) => {
 });
 
 // === User Role Check ===
+// ใช้ใน: ทุก Component ที่ต้องการตรวจสอบ role ของผู้ใช้
+// ทำหน้าที่: ดึงข้อมูล role_id ของผู้ใช้จาก emp_id
 app.get('/api/user-role/:emp_id', async (req, res) => {
   let conn;
   try {
