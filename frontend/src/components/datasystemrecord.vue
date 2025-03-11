@@ -243,15 +243,17 @@ export default {
     async updateSystemRecord() {
       try {
         // ตรวจสอบสิทธิ์การแก้ไขอีกครั้ง
+        // if (this.userRole !== 2 && this.userRole !== 3)
+         {
         const record = this.systemRecords.find(r => r.id === this.editRecordId);
         const userDept = this.getUserDepartment?.dept_change_code;
-        
+         
         if (!record || userDept !== record.dept_change_code) {
           this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
           this.cancelEdit();
           return;
         }
-
+      }
         await axios.put(
           `http://localhost:8088/api/system-record/${this.editRecordId}`,
           {
@@ -278,12 +280,14 @@ export default {
     },
     confirmDeletePrompt(record) {
       // ตรวจสอบสิทธิ์การลบ
+      // if (this.userRole !== 2 && this.userRole !== 3)
+       {
       const userDept = this.getUserDepartment?.dept_change_code;
       if (userDept !== record.dept_change_code) {
         this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
         return;
       }
-
+     }
       this.selectedSystem = record;
       this.showDeleteModal = true;
     },
@@ -295,13 +299,15 @@ export default {
         }
 
         // ตรวจสอบสิทธิ์การลบอีกครั้ง
+        // if (this.userRole !== 2 && this.userRole !== 3)
+         {
         const userDept = this.getUserDepartment?.dept_change_code;
         if (userDept !== this.selectedSystem.dept_change_code) {
           this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
           this.closeModal();
           return;
         }
-        
+      }
         const response = await axios.delete(
           `http://localhost:8088/api/system-record/${this.selectedSystem.id}`
         );
