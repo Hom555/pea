@@ -228,7 +228,7 @@ export default {
       }
     },
     editRecord(record) {
-      // // ตรวจสอบสิทธิ์การแก้ไข
+      // // ตรวจสอบสิทธิ์การแก้ไข กดแล้วขึ้น
       // const userDept = this.getUserDepartment?.dept_change_code;
       // if (userDept !== record.dept_change_code) {
       //   this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
