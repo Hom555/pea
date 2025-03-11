@@ -464,7 +464,7 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // Get current record data before update
+    // รับข้อมูลบันทึกปัจจุบันก่อนการอัปเดต
     const [currentRecord] = await conn.query(
       'SELECT * FROM system_master WHERE id = ?',
       [id]
@@ -477,7 +477,7 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
       });
     }
 
-    // Insert into history table
+    // แทรกลงในตารางประวัติ
     await conn.query(
       `INSERT INTO system_master_history 
       (system_id, name_th_old, name_en_old, name_th_new, name_en_new, modified_by) 
@@ -492,7 +492,7 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
       ]
     );
 
-    // Update the record
+    // อัปเดตบันทึก
     const [result] = await conn.query(
       `UPDATE system_master 
        SET name_th = ?, 
@@ -513,7 +513,7 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
 
     await conn.commit();
 
-    // Fetch updated record with user information
+    // ดึงข้อมูลอัปเดตพร้อมข้อมูลผู้ใช้
     const [updatedRecord] = await conn.query(`
       SELECT sm.*,
              CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
@@ -784,7 +784,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
     const detailId = req.params.id;
     const { importantInfo, referenceNo, additionalInfo } = req.body;
     
-    // Get current record data before update
+    // รับข้อมูลบันทึกปัจจุบันก่อนการอัปเดต
     const [currentRecord] = await conn.query(
       'SELECT * FROM system_details WHERE id = ?',
       [detailId]
@@ -800,7 +800,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
     const oldRecord = currentRecord[0];
     let filePath = oldRecord.file_path;
 
-    // Handle file uploads if any
+    // จัดการการอัพโหลดไฟล์หากมี
     if (req.files && req.files.files) {
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
       const uploadedPaths = [];
@@ -821,7 +821,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       filePath = req.body.existingFiles;
     }
 
-    // Insert into history table
+    // แทรกลงในตารางประวัติ
     await conn.query(
       `INSERT INTO system_details_history (
         system_details_id,
@@ -850,7 +850,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
       ]
     );
 
-    // Update the record
+    // อัปเดตบันทึก
     await conn.query(
       `UPDATE system_details 
       SET 
@@ -873,7 +873,7 @@ app.put('/api/system-details/:id', getUserData, async (req, res) => {
 
     await conn.commit();
     
-    // Fetch updated record
+    // ดึงข้อมูลบันทึกที่อัปเดต
     const [updatedRecord] = await conn.query(
       `SELECT 
         sd.*,
@@ -1123,7 +1123,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // Get current record data before update
+    // รับข้อมูลบันทึกปัจจุบันก่อนการอัปเดต
     const [currentRecord] = await conn.query(
       'SELECT * FROM activities WHERE id = ?',
       [id]
@@ -1136,7 +1136,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
-    // Check department permission
+    // ตรวจสอบการอนุญาตของแผนก
     if (currentRecord[0].dept_change_code !== userDept) {
       return res.status(403).json({
         status: 'error',
@@ -1148,7 +1148,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
     let newFilePaths = oldRecord.file_paths;
     let newImagePaths = oldRecord.image_paths;
 
-    // Handle removed files
+    // จัดการไฟล์ที่ถูกลบ
     if (req.body.removedFiles) {
       const removedFiles = Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles];
       removedFiles.forEach(filePath => {
@@ -1163,7 +1163,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
-    // Handle removed images
+    // จัดการภาพที่ลบออก
     if (req.body.removedImages) {
       const removedImages = Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages];
       removedImages.forEach(imagePath => {
@@ -1178,7 +1178,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       });
     }
 
-    // Handle new file uploads
+    // จัดการการอัพโหลดไฟล์ใหม่
     if (req.files) {
       if (req.files['files[]']) {
         const files = Array.isArray(req.files['files[]']) ? req.files['files[]'] : [req.files['files[]']];
@@ -1203,7 +1203,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       }
     }
 
-    // Insert into history table
+    // แทรกลงในตารางประวัติ
     await conn.query(
       `INSERT INTO activities_history (
         activity_id,
@@ -1232,7 +1232,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
       ]
     );
 
-    // Update the record
+    // อัปเดตบันทึก
     await conn.query(
       `UPDATE activities 
        SET important_info = ?,
@@ -1254,7 +1254,7 @@ app.put('/api/activities/:id', getUserData, async (req, res) => {
 
     await conn.commit();
 
-    // Fetch updated record with user info
+    // ดึงข้อมูลอัปเดตพร้อมข้อมูลผู้ใช้
     const [updatedActivity] = await conn.query(
       `SELECT a.*, 
               CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
@@ -1888,7 +1888,7 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
     await conn.beginTransaction();
 
     try {
-      // Check if activity exists and belongs to user's department
+      // ตรวจสอบว่ามีกิจกรรมอยู่หรือไม่และเป็นของแผนกของผู้ใช้
       const [activity] = await conn.query(
         'SELECT dept_change_code, file_paths, image_paths FROM activities WHERE id = ?',
         [id]
@@ -1902,7 +1902,7 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
         });
       }
 
-      // Check department permission
+      // ตรวจสอบการอนุญาตของแผนก
       if (activity[0].dept_change_code !== userDept) {
         await conn.rollback();
         return res.status(403).json({
@@ -1911,7 +1911,7 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
         });
       }
 
-      // Delete related files if they exist
+      // ลบไฟล์ที่เกี่ยวข้องหากมีอยู่
       if (activity[0].file_paths) {
         const filePaths = activity[0].file_paths.split(',');
         for (const filePath of filePaths) {
@@ -1927,7 +1927,7 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
         }
       }
 
-      // Delete related images if they exist
+      // ลบรูปภาพที่เกี่ยวข้องหากมีอยู่
       if (activity[0].image_paths) {
         const imagePaths = activity[0].image_paths.split(',');
         for (const imagePath of imagePaths) {
@@ -1937,16 +1937,16 @@ app.delete('/api/activities/:id', getUserData, async (req, res) => {
               fs.unlinkSync(fullPath);
             } catch (imageError) {
               console.error('Error deleting image:', imageError);
-              // Continue even if image deletion fails
+              // ดำเนินการต่อแม้ว่าการลบภาพจะล้มเหลว
             }
           }
         }
       }
 
-      // Delete activity history first
+      // ลบประวัติกิจกรรมก่อน
       await conn.query('DELETE FROM activities_history WHERE activity_id = ?', [id]);
 
-      // Delete the activity
+      // ลบกิจกรรม
       await conn.query('DELETE FROM activities WHERE id = ?', [id]);
 
       await conn.commit();
@@ -2117,7 +2117,7 @@ app.get('/api/departments', async (req, res) => {
   }
 });
 
-// === Super Admin System Management ===
+// === Super Admin การจัดการระบบ ===
 app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
   let conn;
   try {
@@ -2137,7 +2137,7 @@ app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
       });
     }
 
-    // Validate input
+    // ตรวจสอบอินพุต
     if (!nameTH || !nameEN || !dept_full || !dept_change_code) {
       return res.status(400).json({
         status: 'error',
@@ -2145,7 +2145,7 @@ app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
       });
     }
 
-    // Insert new record
+    // แทรกบันทึกใหม่
     const [result] = await conn.query(`
       INSERT INTO system_master 
       (name_th, name_en, dept_change_code, dept_full, created_by, is_active) 
@@ -2158,7 +2158,7 @@ app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
       req.user.emp_id
     ]);
 
-    // Return success response with the new record
+    // ส่งคืนการตอบสนองความสำเร็จด้วยบันทึกใหม่
     const [newSystem] = await conn.query(
       'SELECT * FROM system_master WHERE id = ?',
       [result.insertId]
@@ -2180,7 +2180,7 @@ app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
 // Routes - ย้ายมาไว้หลัง middleware ทั้งหมด
 app.use('/api', activitiesRouter);
 
-// Error Handler
+// ตัวจัดการข้อผิดพลาด
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).json({
@@ -2193,7 +2193,7 @@ app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
 
-// Graceful shutdown
+// การปิดระบบอย่างสง่างาม
 process.on('SIGINT', async () => {
   try {
     await pool.end();
@@ -2260,7 +2260,7 @@ app.get('/api/activities/:id/history', getUserData, async (req, res) => {
     const { id } = req.params;
     conn = await pool.getConnection();
 
-    // Fetch activity history with user information
+    // ดึงประวัติกิจกรรมพร้อมข้อมูลผู้ใช้
     const [history] = await conn.query(`
       SELECT 
         ah.*,
@@ -2289,7 +2289,7 @@ app.get('/api/activities/:id/history', getUserData, async (req, res) => {
   }
 });
 
-// Add the new endpoint before the existing system-details endpoints
+// เพิ่มจุดสิ้นสุดใหม่ก่อนจุดสิ้นสุดรายละเอียดระบบที่มีอยู่
 app.get('/api/system-details/check/:id', async (req, res) => {
   let conn;
   try {
@@ -2297,7 +2297,7 @@ app.get('/api/system-details/check/:id', async (req, res) => {
     
     conn = await pool.getConnection();
     
-    // Check if there are any associated details
+    // ตรวจสอบว่ามีรายละเอียดที่เกี่ยวข้องหรือไม่
     const [details] = await conn.query(
       'SELECT COUNT(*) as count FROM system_details WHERE system_id = ?',
       [systemId]
