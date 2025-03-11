@@ -228,12 +228,12 @@ export default {
       }
     },
     editRecord(record) {
-      // ตรวจสอบสิทธิ์การแก้ไข
-      const userDept = this.getUserDepartment?.dept_change_code;
-      if (userDept !== record.dept_change_code) {
-        this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
-        return;
-      }
+      // // ตรวจสอบสิทธิ์การแก้ไข
+      // const userDept = this.getUserDepartment?.dept_change_code;
+      // if (userDept !== record.dept_change_code) {
+      //   this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+      //   return;
+      // }
 
       this.isEditing = true;
       this.editRecordId = record.id;
