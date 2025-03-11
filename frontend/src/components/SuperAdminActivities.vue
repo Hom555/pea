@@ -162,20 +162,37 @@
           <div class="form-group">
             <label>ไฟล์แนบ:</label>
             <div class="file-upload">
-              <input type="file" multiple @change="handleFileChange">
+              <input type="file" multiple @change="handleFileChange" id="file-upload">
+              <label for="file-upload" class="upload-btn">
+                <i class="fas fa-cloud-upload-alt"></i>
+                เลือกไฟล์
+              </label>
               <div class="file-list">
                 <div v-for="(file, index) in editingActivity.file_paths ? getFiles(editingActivity.file_paths) : []" :key="index" class="file-item">
-                  <a :href="file.path" target="_blank" class="file-link">
-                    <i :class="getFileIcon(file.path)"></i>
-                    {{ file.name }}
-                  </a>
-                  <button @click="deleteFile(file.path)" class="btn-delete">
+                  <div class="file-info">
+                    <div class="file-icon">
+                      <i :class="getFileIcon(file.name)"></i>
+                    </div>
+                    <div class="file-details">
+                      <a :href="file.path" target="_blank" class="file-name">{{ file.name }}</a>
+                      <span class="file-size">{{ getFileExtension(file.name) }}</span>
+                    </div>
+                  </div>
+                  <button @click="deleteFile(file.path)" class="btn-delete" title="ลบไฟล์">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
                 <div v-for="(file, index) in newFiles" :key="index" class="file-item">
-                  <span>{{ file.name }}</span>
-                  <button @click="removeNewFile(index)" class="btn-delete">
+                  <div class="file-info">
+                    <div class="file-icon">
+                      <i :class="getFileIcon(file.name)"></i>
+                    </div>
+                    <div class="file-details">
+                      <span class="file-name">{{ file.name }}</span>
+                      <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                    </div>
+                  </div>
+                  <button @click="removeNewFile(index)" class="btn-delete" title="ลบไฟล์">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
@@ -189,7 +206,12 @@
                 type="file" 
                 multiple 
                 accept="image/*"
-                @change="handleImageChange">
+                @change="handleImageChange"
+                id="image-upload">
+              <label for="image-upload" class="upload-btn">
+                <i class="fas fa-images"></i>
+                เลือกรูปภาพ
+              </label>
               <div class="image-list">
                 <div v-for="(image, index) in editingActivity.image_paths ? getFiles(editingActivity.image_paths) : []" :key="index" class="image-item">
                   <img :src="image.path" :alt="image.name" @click="showFullImage(image.path)">
@@ -403,6 +425,36 @@
         </div>
       </div>
     </div>
+
+    <!-- เพิ่ม Modal ยืนยันการลบไฟล์/รูปภาพ -->
+    <div v-if="showDeleteFileModal" class="modal-overlay">
+      <div class="modal-card delete-modal">
+        <div class="modal-header delete">
+          <h3><i class="fas fa-exclamation-triangle"></i> ยืนยันการลบเอกสาร</h3>
+          <button class="close-btn" @click="closeDeleteFileModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="delete-content">
+            <div class="file-preview">
+              <i :class="selectedFile?.isImage ? 'fas fa-image' : 'fas fa-file-alt'"></i>
+              <p>{{ selectedFile?.name }}</p>
+            </div>
+            <p>คุณต้องการลบเอกสารนี้ใช่หรือไม่?</p>
+            <p class="warning"><i class="fas fa-exclamation-circle"></i> การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-btn" @click="closeDeleteFileModal">
+              <i class="fas fa-times"></i> ยกเลิก
+            </button>
+            <button class="delete-btn" @click="confirmDeleteFile">
+              <i class="fas fa-trash-alt"></i> ยืนยันการลบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -442,6 +494,8 @@ export default {
       showImagesModal: false,
       selectedFiles: [],
       selectedImages: [],
+      showDeleteFileModal: false,
+      selectedFile: null,
     }
   },
 
@@ -589,12 +643,37 @@ export default {
       }));
     },
 
-    getFileIcon(path) {
-      const ext = path.split('.').pop().toLowerCase();
-      if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'fas fa-image';
-      if (['pdf'].includes(ext)) return 'fas fa-file-pdf';
-      if (['doc', 'docx'].includes(ext)) return 'fas fa-file-word';
-      return 'fas fa-file';
+    getFileExtension(filename) {
+      return filename.split('.').pop().toUpperCase();
+    },
+
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    getFileIcon(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      const iconMap = {
+        'pdf': 'fas fa-file-pdf',
+        'doc': 'fas fa-file-word',
+        'docx': 'fas fa-file-word',
+        'xls': 'fas fa-file-excel',
+        'xlsx': 'fas fa-file-excel',
+        'ppt': 'fas fa-file-powerpoint',
+        'pptx': 'fas fa-file-powerpoint',
+        'jpg': 'fas fa-file-image',
+        'jpeg': 'fas fa-file-image',
+        'png': 'fas fa-file-image',
+        'gif': 'fas fa-file-image',
+        'txt': 'fas fa-file-alt',
+        'zip': 'fas fa-file-archive',
+        'rar': 'fas fa-file-archive'
+      };
+      return iconMap[ext] || 'fas fa-file';
     },
 
     editActivity(activity) {
@@ -767,45 +846,68 @@ export default {
     },
 
     deleteFile(path) {
-      if (!confirm(`ต้องการลบไฟล์ "${path.split('/').pop()}" ใช่หรือไม่?`)) {
-        return;
-      }
-
-      if (!this.editingActivity.deletedFiles) {
-        this.editingActivity.deletedFiles = [];
-      }
-      
-      // เพิ่มไฟล์ที่จะลบเข้าไปใน array
-      const fullPath = path.includes('http://localhost:8088') ? 
-        path.replace('http://localhost:8088', '') : path;
-      this.editingActivity.deletedFiles.push(fullPath);
-
-      // อัพเดตรายการไฟล์ที่แสดง
-      const currentFiles = this.editingActivity.file_paths ? this.editingActivity.file_paths.split(',') : [];
-      this.editingActivity.file_paths = currentFiles
-        .filter(f => !f.includes(fullPath))
-        .join(',');
+      const fileName = path.split('/').pop();
+      this.selectedFile = {
+        path: path.includes('http://localhost:8088') ? 
+          path.replace('http://localhost:8088', '') : path,
+        name: fileName
+      };
+      this.showDeleteFileModal = true;
     },
 
     deleteImage(path) {
-      if (!confirm(`ต้องการลบรูปภาพ "${path.split('/').pop()}" ใช่หรือไม่?`)) {
-        return;
-      }
+      const fileName = path.split('/').pop();
+      this.selectedFile = {
+        path: path.includes('http://localhost:8088') ? 
+          path.replace('http://localhost:8088', '') : path,
+        name: fileName,
+        isImage: true
+      };
+      this.showDeleteFileModal = true;
+    },
 
-      if (!this.editingActivity.deletedImages) {
-        this.editingActivity.deletedImages = [];
-      }
-      
-      // เพิ่มรูปภาพที่จะลบเข้าไปใน array
-      const fullPath = path.includes('http://localhost:8088') ? 
-        path.replace('http://localhost:8088', '') : path;
-      this.editingActivity.deletedImages.push(fullPath);
+    async confirmDeleteFile() {
+      try {
+        if (!this.selectedFile) {
+          this.toast.error('ไม่พบไฟล์ที่ต้องการลบ');
+          return;
+        }
 
-      // อัพเดตรายการรูปภาพที่แสดง
-      const currentImages = this.editingActivity.image_paths ? this.editingActivity.image_paths.split(',') : [];
-      this.editingActivity.image_paths = currentImages
-        .filter(img => !img.includes(fullPath))
-        .join(',');
+        if (!this.editingActivity.deletedFiles) {
+          this.editingActivity.deletedFiles = [];
+        }
+        if (!this.editingActivity.deletedImages) {
+          this.editingActivity.deletedImages = [];
+        }
+        
+        // เพิ่มไฟล์ที่จะลบเข้าไปใน array
+        if (this.selectedFile.isImage) {
+          this.editingActivity.deletedImages.push(this.selectedFile.path);
+          // อัพเดตรายการรูปภาพที่แสดง
+          const currentImages = this.editingActivity.image_paths ? this.editingActivity.image_paths.split(',') : [];
+          this.editingActivity.image_paths = currentImages
+            .filter(img => !img.includes(this.selectedFile.path))
+            .join(',');
+        } else {
+          this.editingActivity.deletedFiles.push(this.selectedFile.path);
+          // อัพเดตรายการไฟล์ที่แสดง
+          const currentFiles = this.editingActivity.file_paths ? this.editingActivity.file_paths.split(',') : [];
+          this.editingActivity.file_paths = currentFiles
+            .filter(f => !f.includes(this.selectedFile.path))
+            .join(',');
+        }
+
+        this.toast.success(this.selectedFile.isImage ? 'ลบรูปภาพสำเร็จ' : 'ลบไฟล์สำเร็จ');
+        this.closeDeleteFileModal();
+      } catch (error) {
+        console.error('Error deleting file:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบไฟล์ได้');
+      }
+    },
+
+    closeDeleteFileModal() {
+      this.showDeleteFileModal = false;
+      this.selectedFile = null;
     },
 
     getFileName(path) {
@@ -1619,8 +1721,8 @@ textarea.form-control {
 }
 
 .image-item img {
-  width: 100%;
-  height: 80px;
+  width: 50%;
+  height: 160px;
   object-fit: cover;
   border-radius: 6px;
   cursor: pointer;
@@ -1794,136 +1896,214 @@ textarea.form-control {
 }
 
 .modal-header.delete {
-  background: linear-gradient(135deg, #c62828, #d32f2f);
+  background: #dc2626;
+  padding: 15px 20px;
 }
 
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.4rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.modal-header.delete h3 {
+  font-size: 1.2rem;
+  font-weight: 500;
 }
 
-.close-btn {
-  background: rgba(255,255,255,0.2);
-  border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.modal-header.delete i {
+  font-size: 1.2rem;
 }
 
-.close-btn:hover {
-  background: rgba(255,255,255,0.3);
-  transform: rotate(90deg);
+.file-preview {
+  text-align: center;
+  margin: 20px 0;
+  padding: 30px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
 }
 
-.modal-body {
-  padding: 25px;
+.file-preview i {
+  font-size: 48px;
+  color: #64748b;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.file-preview p {
+  color: #1e293b;
+  font-size: 1rem;
+  margin: 8px 0 0 0;
+  word-break: break-all;
 }
 
 .delete-content {
   text-align: center;
-  padding: 20px 0;
+  padding: 10px 0;
 }
 
 .delete-content p {
   margin: 10px 0;
-  font-size: 1.1rem;
-  color: #333;
-}
-
-.delete-content span {
-  font-weight: 600;
-  color: #c62828;
+  font-size: 1rem;
+  color: #334155;
 }
 
 .warning {
-  color: #c62828 !important;
+  color: #dc2626 !important;
   font-size: 0.9rem !important;
   margin-top: 15px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.warning i {
+  font-size: 1rem;
 }
 
 .modal-actions {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 25px;
 }
 
 .cancel-btn, .delete-btn {
-  padding: 12px 24px;
-  border-radius: 10px;
+  padding: 8px 16px;
+  border-radius: 6px;
   border: none;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 0.9rem;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.3s ease;
+  gap: 6px;
+  transition: all 0.2s ease;
 }
 
 .cancel-btn {
-  background: #f5f5f5;
-  color: #666;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .delete-btn {
-  background: linear-gradient(135deg, #c62828, #d32f2f);
+  background: #dc2626;
   color: white;
 }
 
-.modal-actions button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
-
-@keyframes modalSlideIn {
-  from {
-    transform: translateY(-50px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.image-upload {
-  margin-top: 10px;
-}
-
-.image-upload input[type="file"] {
-  display: none;
-}
-
-.image-upload label {
-  display: inline-block;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 500;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
-}
-
-.image-upload label:hover {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+.cancel-btn:hover, .delete-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+}
+
+.modal-card {
+  background: white;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.file-list {
+  margin-top: 15px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px dashed #e2e8f0;
+  padding: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.file-item:last-child {
+  margin-bottom: 0;
+}
+
+.file-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.file-icon {
+  width: 40px;
+  height: 40px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-icon i {
+  font-size: 1.2rem;
+  color: #3b82f6;
+}
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-name {
+  color: #1e293b;
+  font-size: 0.95rem;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a.file-name:hover {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.file-size {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.btn-delete {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.file-item:hover .btn-delete {
+  opacity: 1;
+}
+
+.btn-delete:hover {
+  background: #fecaca;
+  transform: scale(1.05);
 }
 
 .image-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 16px;
-  margin-top: 20px;
-  padding: 15px;
+  margin-top: 15px;
+  padding: 16px;
   background: #f8fafc;
   border-radius: 12px;
   border: 1px dashed #e2e8f0;
@@ -1937,11 +2117,13 @@ textarea.form-control {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
   background: white;
+  border: 2px solid transparent;
 }
 
 .image-item:hover {
   transform: translateY(-5px);
   box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+  border-color: #3b82f6;
 }
 
 .image-item img {
@@ -1959,8 +2141,8 @@ textarea.form-control {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: rgba(239, 68, 68, 0.9);
   color: white;
@@ -1982,187 +2164,5 @@ textarea.form-control {
 .image-item .btn-delete:hover {
   background: #dc2626;
   transform: scale(1.1);
-}
-
-.image-preview {
-  position: relative;
-  width: 100%;
-  padding-bottom: 100%;
-  margin-bottom: 10px;
-}
-
-.image-preview img {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.file-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.file-link i {
-  font-size: 0.9rem;
-}
-
-.files-header, .images-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.files-header h4, .images-header h4 {
-  font-size: 0.95rem;
-  color: #334155;
-  margin: 0;
-}
-
-.btn-view {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: #e0f2fe;
-  color: #0284c7;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-view:hover {
-  background: #fdcfba;
-  transform: translateY(-1px);
-}
-
-.more-files, .more-images {
-  color: #64748b;
-  font-size: 0.85rem;
-  padding: 8px;
-  background: #f1f5f9;
-  border-radius: 6px;
-  text-align: center;
-}
-
-.files-list-modal {
-  max-width: 900px !important;
-  width: 90% !important;
-  background: white;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.files-list-container {
-  padding: 16px;
-}
-
-.files-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  padding: 16px;
-}
-
-.file-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 24px 16px;
-  text-align: center;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.file-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  border-color: #3b82f6;
-}
-
-.file-icon {
-  font-size: 32px;
-  color: #3b82f6;
-  margin-bottom: 12px;
-}
-
-.file-info {
-  margin-top: 8px;
-}
-
-.file-name {
-  color: #334155;
-  text-decoration: none;
-  font-size: 0.9rem;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-name:hover {
-  color: #2563eb;
-  text-decoration: underline;
-}
-
-.no-files-message {
-  text-align: center;
-  padding: 40px;
-  color: #64748b;
-}
-
-.no-files-message i {
-  font-size: 48px;
-  margin-bottom: 16px;
-  color: #94a3b8;
-  display: block;
-}
-
-.no-files-message p {
-  font-size: 1rem;
-  margin: 0;
-}
-
-.modal-header {
-  background: #1e40af;
-  color: white;
-  padding: 20px;
-}
-
-.modal-header h2 {
-  color: white;
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.modal-header .btn-close {
-  color: white;
-  opacity: 0.8;
-}
-
-.modal-header .btn-close:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.modal-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.modal-title i {
-  font-size: 24px;
 }
 </style> 

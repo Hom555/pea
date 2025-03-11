@@ -228,6 +228,13 @@ export default {
       }
     },
     editRecord(record) {
+      // ตรวจสอบสิทธิ์การแก้ไข
+      const userDept = this.getUserDepartment?.dept_change_code;
+      if (userDept !== record.dept_change_code) {
+        this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+        return;
+      }
+
       this.isEditing = true;
       this.editRecordId = record.id;
       this.editNameTH = record.name_th;
@@ -235,6 +242,16 @@ export default {
     },
     async updateSystemRecord() {
       try {
+        // ตรวจสอบสิทธิ์การแก้ไขอีกครั้ง
+        const record = this.systemRecords.find(r => r.id === this.editRecordId);
+        const userDept = this.getUserDepartment?.dept_change_code;
+        
+        if (!record || userDept !== record.dept_change_code) {
+          this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+          this.cancelEdit();
+          return;
+        }
+
         await axios.put(
           `http://localhost:8088/api/system-record/${this.editRecordId}`,
           {
@@ -260,6 +277,13 @@ export default {
       this.isSubmitting = false;
     },
     confirmDeletePrompt(record) {
+      // ตรวจสอบสิทธิ์การลบ
+      const userDept = this.getUserDepartment?.dept_change_code;
+      if (userDept !== record.dept_change_code) {
+        this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+        return;
+      }
+
       this.selectedSystem = record;
       this.showDeleteModal = true;
     },
@@ -267,6 +291,14 @@ export default {
       try {
         if (!this.selectedSystem) {
           this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
+          return;
+        }
+
+        // ตรวจสอบสิทธิ์การลบอีกครั้ง
+        const userDept = this.getUserDepartment?.dept_change_code;
+        if (userDept !== this.selectedSystem.dept_change_code) {
+          this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+          this.closeModal();
           return;
         }
         
