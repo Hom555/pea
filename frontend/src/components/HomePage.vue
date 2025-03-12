@@ -3,44 +3,12 @@
     <div class="content-wrapper">
       <div class="welcome-section animate-in" style="--delay: 0.1s">
         <div class="welcome-content">
+          <h1>ยินดีต้อนรับสู่ระบบจัดการกิจกรรม</h1>
+          <p class="subtitle">ระบบที่จะช่วยให้การจัดการกิจกรรมของคุณเป็นเรื่องง่าย</p>
           <div class="welcome-decoration">
             <div class="circle"></div>
             <div class="line"></div>
           </div>
-        </div>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-card animate-in" style="--delay: 0.2s">
-          <div class="stat-icon pulse">
-            <i class="fas fa-calendar-check"></i>
-          </div>
-          <div class="stat-content">
-            <h3>กิจกรรมทั้งหมด</h3>
-            <div class="stat-value">{{ totalActivities }}</div>
-            <div class="stat-footer">
-              <i class="fas fa-clock"></i>
-              <span>อัพเดตล่าสุด {{ currentTime }} </span>
-            </div>
-          </div>
-          <div class="stat-decoration"></div>
-        </div>
-
-        <div class="stat-card animate-in" style="--delay: 0.3s">
-          <div class="stat-icon pulse">
-            <i class="fas fa-chart-line"></i>
-          </div>
-          <div class="stat-content">
-            <h3>กิจกรรมเดือนนี้</h3>
-            <div class="stat-value">
-              {{ currentMonthActivities }}
-            </div>
-            <div class="stat-footer">
-              <i class="fas fa-calendar"></i>
-              <span>เดือน {{ currentMonth }}</span>
-            </div>
-          </div>
-          <div class="stat-decoration"></div>
         </div>
       </div>
 
@@ -107,6 +75,9 @@ export default HomePageScript
   text-align: center;
   margin-bottom: 4rem;
   position: relative;
+  padding: 4rem 2rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(56, 189, 248, 0.05) 100%);
+  border-radius: 24px;
 }
 
 .welcome-content {
@@ -115,21 +86,22 @@ export default HomePageScript
 }
 
 .welcome-section h1 {
-  font-size: 3rem;
+  font-size: 3.5rem;
   font-weight: 800;
-  margin-bottom: 1rem;
-  background: linear-gradient(120deg, #1e293b, #334155);
+  margin-bottom: 1.5rem;
+  background: linear-gradient(120deg, #4A5EF7, #3A4EE7);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .subtitle {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   color: #64748b;
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   line-height: 1.6;
+  margin-bottom: 2rem;
 }
 
 .welcome-decoration {
@@ -142,62 +114,43 @@ export default HomePageScript
   z-index: 1;
 }
 
-/* Stats Cards */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin-bottom: 4rem;
+.circle {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(56, 189, 248, 0.1) 100%);
+  top: -150px;
+  right: -150px;
 }
 
-.stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  padding: 2rem;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+.line {
+  position: absolute;
+  width: 200px;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.2), transparent);
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border-color: #cbd5e1;
+/* Animate In */
+.animate-in {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.6s ease forwards;
+  animation-delay: var(--delay, 0s);
 }
 
-.stat-icon {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.8rem;
-  margin-bottom: 1.5rem;
-  color: white;
-}
-
-.stat-content h3 {
-  color: #64748b;
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.stat-value {
-  color: #1e293b;
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin: 1rem 0;
-}
-
-.stat-footer {
-  color: #94a3b8;
-  font-size: 0.9rem;
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Quick Actions */
@@ -318,18 +271,13 @@ export default HomePageScript
     padding: 1rem;
   }
 
-  .stats-grid, .quick-actions-grid {
+  .quick-actions-grid {
     grid-template-columns: 1fr;
   }
 }
 
 /* ปรับสี hover effects */
 .action-card:hover .action-icon {
-  background: linear-gradient(135deg, #4A5EF7, #3A4EE7);
-  transform: scale(1.1);
-}
-
-.stat-card:hover .stat-icon {
   background: linear-gradient(135deg, #4A5EF7, #3A4EE7);
   transform: scale(1.1);
 }
