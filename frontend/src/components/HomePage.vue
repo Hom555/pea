@@ -4,7 +4,7 @@
       <div class="welcome-section animate-in" style="--delay: 0.1s">
         <div class="welcome-content">
           <h1>ยินดีต้อนรับสู่ระบบจัดการกิจกรรม</h1>
-          <p class="subtitle">ระบบที่จะช่วยให้การจัดการกิจกรรมของคุณเป็นเรื่องง่าย</p>
+          <p class="subtitle">ระบบที่จะช่วยให้การจัดการกิจกรรมต่างๆ</p>
           <div class="welcome-decoration">
             <div class="circle"></div>
             <div class="line"></div>
