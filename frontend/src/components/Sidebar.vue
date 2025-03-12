@@ -417,6 +417,51 @@ export default {
   display: none;
 }
 
+.sidebar.collapsed .nav-item {
+  padding: 0.8rem;
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .section-title,
+.sidebar.collapsed .toggle-icon {
+  display: none;
+}
+
+.sidebar.collapsed .sub-menu {
+  display: none !important;
+}
+
+.sidebar.collapsed .nav-item i {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.sidebar.collapsed .logo-container {
+  margin: 0 auto;
+}
+
+
+.sidebar.collapsed .admin-section {
+  padding: 0.5rem;
+  margin: 0;
+  background: transparent;
+}
+
+.sidebar.collapsed .user-profile {
+  padding: 0.5rem;
+}
+
+/* Add smooth transitions */
+.sidebar,
+.nav-item,
+.logo-container,
+.sidebar-header,
+.user-profile,
+.admin-section {
+  transition: all 0.3s ease-in-out;
+}
+
 /* Logo Section */
 .sidebar-header {
   padding: 1.5rem;
@@ -556,7 +601,7 @@ export default {
 
 .toggle-btn:hover {
   background: #f1f5f9;
-  color: #64748b;
+  color: #3b82f6;
 }
 
 .user-role-info {
