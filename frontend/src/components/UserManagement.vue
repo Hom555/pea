@@ -108,7 +108,7 @@
                     <i class="fas fa-user-shield"></i>
                     จัดการสิทธิ์
                   </button>
-                  <button class="btn-delete" @click="confirmDelete(user)">
+                  <button v-if="userRole === 3" class="btn-delete" @click="confirmDelete(user)">
                     <i class="fas fa-trash"></i>
                     ลบ
                   </button>
@@ -349,6 +349,7 @@ export default {
       departmentFilter: '',
       roleFilter: '',
       showAddUserModal: false,
+      userRole: null,
       userForm: {
         firstName: '',
         lastName: '',
@@ -725,6 +726,10 @@ export default {
     }
   },
   created() {
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    if (userData) {
+      this.userRole = userData.role_id;
+    }
     this.fetchUsers();
     this.fetchDepartments();
   }
