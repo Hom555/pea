@@ -103,12 +103,12 @@
                 </span>
               </td>
               <td class="text-center">
-                <div  class="action-buttons">
+                <div class="action-buttons">
                   <button class="btn-manage" @click="manageRole(user)">
                     <i class="fas fa-user-shield"></i>
                     จัดการสิทธิ์
                   </button>
-                  <button v-if="userRole === 3" class="btn-delete" @click="confirmDelete(user)">
+                  <button class="btn-delete" @click="confirmDelete(user)">
                     <i class="fas fa-trash"></i>
                     ลบ
                   </button>
@@ -409,7 +409,6 @@ export default {
     },
     async fetchDepartments() {
       try {
-        
         const response = await axios.get('http://localhost:8088/api/departments');
         this.departments = response.data.map(dept => ({
           code: dept.dept_change_code,
@@ -420,8 +419,6 @@ export default {
         this.toast.error('ไม่สามารถโหลดข้อมูลแผนกได้');
       }
     },
-    
-
     editUser(user) {
       alert('ไม่สามารถแก้ไขข้อมูลผู้ใช้ได้เนื่องจากใช้ข้อมูลจากระบบหลัก');
     },
