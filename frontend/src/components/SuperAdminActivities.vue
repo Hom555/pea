@@ -12,6 +12,7 @@
         </div>
       </div>
 
+
       <!-- Filter Section -->
       <div class="filter-section">
         <div class="search-box">
@@ -19,7 +20,7 @@
           <input 
             type="text" 
             v-model="searchTerm" 
-            placeholder="ค้นหาผู้ใช้งาน..."
+            placeholder="ค้นหา"
           >
         </div>
         <div class="filter-group">

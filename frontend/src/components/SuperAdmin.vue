@@ -44,7 +44,7 @@
               required
               @change="handleDeptChange"
             >
-              <option value="" disabled selected>กรุณาเลือกแผนก</option>
+              <option value=""  disabled selected>กรุณาเลือกแผนก</option>
               <option 
                 v-for="dept in departments" 
                 :key="dept.dept_change_code" 

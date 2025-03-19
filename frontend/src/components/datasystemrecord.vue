@@ -447,6 +447,7 @@ h1 {
   background: white;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
 
 table {
@@ -454,10 +455,12 @@ table {
   border-collapse: collapse;
   margin-top: 20px;
   font-size: 0.95rem;
+  border: 1px solid #e2e8f0;
 }
 
 thead {
-  background-color: #f8f9fa;
+  /* background-color: #f8f9fa; */
+  width: 100%;
 }
 
 th {
@@ -465,16 +468,19 @@ th {
   font-weight: 600;
   color: #2c3e50;
   text-align: left;
+  /* border: 1px solid #e2e8f0; */
   border-bottom: 2px solid #e2e8f0;
+  /* background-color: #f8f9fa; */
 }
 
 .th-actions {
-  text-align: right; /* Center align the header text */
+  text-align: center;
+  min-width: 220px; /* กำหนดความกว้างขั้นต่ำให้พอดีกับปุ่ม */
 }
 
 td {
   padding: 15px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border: 1px solid #e2e8f0;
   vertical-align: middle;
 }
 

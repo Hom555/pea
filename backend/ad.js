@@ -28,6 +28,15 @@ const mockEmployees = [
   //   first_name: "สมชาย",
   //   last_name: "ใจดี"
   // },
+
+  // {
+  //   emp_id: 498146447,
+  //   dept_change_code: "530105002000303",
+  //   dept_full: "แผนกซ่อมบำรุง",
+  //   first_name: "สม",
+  //   last_name: "ใจดี"
+  // },
+
     {
     emp_id: 498146441,
     dept_change_code: "530105002000302",

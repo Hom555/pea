@@ -8,11 +8,10 @@
           <h1>จัดการสิทธิ์ผู้ใช้งาน</h1>
         </div>
         
-      
-        <!-- <button class="btn-add" @click="showAddUserModal = true">
+        <button class="btn-add" @click="showAddUserModal = true">
           <i class="fas fa-user-plus"></i>
           เพิ่มผู้ใช้งาน
-        </button>  -->
+        </button>
        
       </div>
 
@@ -31,7 +30,9 @@
             <i class="fas fa-building"></i>
             <select v-model="departmentFilter">
               <option value="">ทุกแผนก</option>
-              <option v-for="dept in departments" :key="dept">{{ dept }}</option>
+              <option v-for="dept in departments" :key="dept.code" :value="dept.name">
+                {{ dept.name }}
+              </option>
             </select>
           </div>
           <div class="select-wrapper">
@@ -102,10 +103,16 @@
                 </span>
               </td>
               <td class="text-center">
-                <button class="btn-manage" @click="manageRole(user)">
-                  <i class="fas fa-user-shield"></i>
-                  จัดการสิทธิ์
-                </button>
+                <div  class="action-buttons">
+                  <button class="btn-manage" @click="manageRole(user)">
+                    <i class="fas fa-user-shield"></i>
+                    จัดการสิทธิ์
+                  </button>
+                  <button v-if="userRole === 3" class="btn-delete" @click="confirmDelete(user)">
+                    <i class="fas fa-trash"></i>
+                    ลบ
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -131,13 +138,25 @@
               <div class="form-group">
                 <label>
                   <i class="fas fa-user"></i>
-                  ชื่อ-นามสกุล
+                  ชื่อ
                 </label>
                 <input 
                   type="text" 
-                  v-model="userForm.name" 
+                  v-model="userForm.firstName" 
                   required
-                  placeholder="กรอกชื่อ-นามสกุล"
+                  placeholder="กรอกชื่อ"
+                >
+              </div>
+              <div class="form-group">
+                <label>
+                  <i class="fas fa-user"></i>
+                  นามสกุล
+                </label>
+                <input 
+                  type="text" 
+                  v-model="userForm.lastName" 
+                  required
+                  placeholder="กรอกนามสกุล"
                 >
               </div>
               <div class="form-group">
@@ -146,7 +165,7 @@
                   รหัสพนักงาน
                 </label>
                 <input 
-                  type="text" 
+                  type="number" 
                   v-model="userForm.employeeId" 
                   required
                   placeholder="กรอกรหัสพนักงาน"
@@ -158,8 +177,10 @@
                   แผนก
                 </label>
                 <select v-model="userForm.department" required>
-                  <option value="">เลือกแผนก</option>
-                  <option v-for="dept in departments" :key="dept">{{ dept }}</option>
+                  <option value="" disabled selected>กรุณาเลือกแผนก</option>
+                  <option v-for="dept in departments" :key="dept.code" :value="dept">
+                    {{ dept.name }}
+                  </option>
                 </select>
               </div>
               <div class="form-group">
@@ -180,7 +201,7 @@
               </button>
               <button type="submit" class="btn-save">
                 <i class="fas fa-save"></i>
-                {{ editingUser ? 'บันทึกการแก้ไข' : 'เพิ่มผู้ใช้งาน' }}
+                เพิ่มผู้ใช้งาน
               </button>
             </div>
           </form>
@@ -275,6 +296,37 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal ยืนยันการลบ -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="closeDeleteModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>
+            <i class="fas fa-exclamation-triangle"></i>
+            ยืนยันการลบผู้ใช้งาน
+          </h2>
+          <button @click="closeDeleteModal" class="btn-close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>คุณต้องการลบผู้ใช้งาน</p>
+          <p class="user-name">{{ selectedUser?.first_name }} {{ selectedUser?.last_name }}</p>
+          <p>ใช่หรือไม่?</p>
+          
+          <div class="form-actions">
+            <button class="btn-cancel" @click="closeDeleteModal">
+              <i class="fas fa-times"></i>
+              ยกเลิก
+            </button>
+            <button class="btn-delete" @click="deleteUser">
+              <i class="fas fa-trash"></i>
+              ลบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -297,9 +349,9 @@ export default {
       departmentFilter: '',
       roleFilter: '',
       showAddUserModal: false,
-      editingUser: null,
       userForm: {
-        name: '',
+        firstName: '',
+        lastName: '',
         employeeId: '',
         department: '',
         role: 'user'
@@ -308,18 +360,16 @@ export default {
       selectedUser: null,
       showRoleModal: false,
       selectedRole: null,
-      originalRoles: {},
       roles: [
         { value: 'user', label: 'User', icon: 'fas fa-user' },
         { value: 'admin', label: 'Admin', icon: 'fas fa-user-cog' },
         { value: 'superadmin', label: 'Super Admin', icon: 'fas fa-user-shield' }
-      ]
+      ],
+      showDeleteModal: false,
+      departments: []
     }
   },
   computed: {
-    departments() {
-      return [...new Set(this.users.map(user => user.dept_full))];
-    },
     filteredUsers() {
       return this.users.filter(user => {
         const matchesSearch = !this.searchTerm || 
@@ -357,6 +407,21 @@ export default {
         this.toast.error('ไม่สามารถโหลดข้อมูลผู้ใช้งานได้');
       }
     },
+    async fetchDepartments() {
+      try {
+        
+        const response = await axios.get('http://localhost:8088/api/departments');
+        this.departments = response.data.map(dept => ({
+          code: dept.dept_change_code,
+          name: dept.dept_full
+        }));
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        this.toast.error('ไม่สามารถโหลดข้อมูลแผนกได้');
+      }
+    },
+    
+
     editUser(user) {
       alert('ไม่สามารถแก้ไขข้อมูลผู้ใช้ได้เนื่องจากใช้ข้อมูลจากระบบหลัก');
     },
@@ -372,14 +437,40 @@ export default {
       }
     },
     async saveUser() {
-      alert('ฟังก์ชันนี้ไม่สามารถใช้งานได้เนื่องจากไม่มีสิทธิ์ในการแก้ไขข้อมูลผู้ใช้');
-      this.closeModal();
+      try {
+        if (!this.userForm.firstName || !this.userForm.lastName || !this.userForm.department || !this.userForm.employeeId) {
+          this.toast.error('กรุณากรอกข้อมูลให้ครบถ้วน');
+          return;
+        }
+
+        const userData = {
+          role_id: this.userForm.role === 'admin' ? 2 : 1,
+          emp_id: parseInt(this.userForm.employeeId),
+          first_name: this.userForm.firstName,
+          last_name: this.userForm.lastName,
+          dept_change_code: this.userForm.department.code,
+          dept_full: this.userForm.department.name
+        };
+
+        const response = await axios.post('http://localhost:8088/api/add-user', userData);
+        
+        if (response.data.status === 'success') {
+          this.toast.success('เพิ่มผู้ใช้งานสำเร็จ');
+          this.closeModal();
+          await this.fetchUsers(); // รีโหลดข้อมูลทั้งหมดใหม่
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถเพิ่มผู้ใช้งานได้');
+        }
+      } catch (error) {
+        console.error('Error adding user:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถเพิ่มผู้ใช้งานได้');
+      }
     },
     closeModal() {
       this.showAddUserModal = false;
-      this.editingUser = null;
       this.userForm = {
-        name: '',
+        firstName: '',
+        lastName: '',
         employeeId: '',
         department: '',
         role: 'user'
@@ -605,10 +696,40 @@ export default {
         default:
           return 0;
       }
+    },
+    confirmDelete(user) {
+      this.selectedUser = user;
+      this.showDeleteModal = true;
+    },
+    closeDeleteModal() {
+      this.showDeleteModal = false;
+      this.selectedUser = null;
+    },
+    async deleteUser() {
+      try {
+        if (!this.selectedUser) {
+          this.toast.error('ไม่พบข้อมูลผู้ใช้งาน');
+          return;
+        }
+
+        const response = await axios.delete(`http://localhost:8088/api/delete-user/${this.selectedUser.emp_id}`);
+        
+        if (response.data.status === 'success') {
+          this.toast.success('ลบผู้ใช้งานสำเร็จ');
+          this.closeDeleteModal();
+          await this.fetchUsers(); // รีโหลดข้อมูลทั้งหมดใหม่
+        } else {
+          throw new Error(response.data.message || 'ไม่สามารถลบผู้ใช้งานได้');
+        }
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        this.toast.error(error.response?.data?.message || 'ไม่สามารถลบผู้ใช้งานได้');
+      }
     }
   },
   created() {
     this.fetchUsers();
+    this.fetchDepartments();
   }
 }
 </script>
@@ -1189,5 +1310,30 @@ td {
 
 .btn-close i {
   font-size: 1.1rem;
+}
+
+.btn-delete {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  min-width: 220px;
 }
 </style>

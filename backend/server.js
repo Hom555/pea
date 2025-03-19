@@ -13,6 +13,7 @@ const ad = require('./ad');
 const aa = require('./aa');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
+const usersRouter = require('./routes/users');
 
 // ตั้งค่า CORS
 app.use(cors({
@@ -2179,6 +2180,7 @@ app.post('/api/super-admin/system-record', getUserData, async (req, res) => {
 
 // Routes - ย้ายมาไว้หลัง middleware ทั้งหมด
 app.use('/api', activitiesRouter);
+app.use('/api', usersRouter);
 
 // ตัวจัดการข้อผิดพลาด
 app.use((err, req, res, next) => {
