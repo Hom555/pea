@@ -8,7 +8,7 @@
           <h1>จัดการสิทธิ์ผู้ใช้งาน</h1>
         </div>
         
-        <button class="btn-add" @click="showAddUserModal = true">
+        <button v-if="currentUserRole === 3" class="btn-add" @click="showAddUserModal = true">
           <i class="fas fa-user-plus"></i>
           เพิ่มผู้ใช้งาน
         </button>
@@ -22,7 +22,7 @@
           <input 
             type="text" 
             v-model="searchTerm" 
-            placeholder="ค้นหาผู้ใช้งาน..."
+            placeholder="ค้นหา"
           >
         </div>
         <div class="filter-group">
@@ -108,10 +108,12 @@
                     <i class="fas fa-user-shield"></i>
                     จัดการสิทธิ์
                   </button>
-                  <button v-if="userRole === 3" class="btn-delete" @click="confirmDelete(user)">
+                  
+                  <button v-if="currentUserRole === 3" class="btn-delete" @click="confirmDelete(user)">
                     <i class="fas fa-trash"></i>
                     ลบ
                   </button>
+
                 </div>
               </td>
             </tr>
@@ -319,7 +321,7 @@
               <i class="fas fa-times"></i>
               ยกเลิก
             </button>
-            <button class="btn-delete" @click="deleteUser">
+            <button  class="btn-delete" @click="deleteUser">
               <i class="fas fa-trash"></i>
               ลบ
             </button>
@@ -349,7 +351,7 @@ export default {
       departmentFilter: '',
       roleFilter: '',
       showAddUserModal: false,
-      userRole: null,
+      currentUserRole: null,
       userForm: {
         firstName: '',
         lastName: '',
@@ -397,6 +399,8 @@ export default {
       return this.users.filter(user => user.role_id === 3).length;
     }
   },
+
+
   methods: {
     async fetchUsers() {
       try {
@@ -723,13 +727,22 @@ export default {
         console.error('Error deleting user:', error);
         this.toast.error(error.response?.data?.message || 'ไม่สามารถลบผู้ใช้งานได้');
       }
+    },
+    getCurrentUserRole() {
+      try {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        console.log('userData from localStorage:', userData);
+        if (userData && userData.role_id) {
+          this.currentUserRole = parseInt(userData.role_id);
+          console.log('Set currentUserRole to:', this.currentUserRole);
+        }
+      } catch (error) {
+        console.error('Error getting user role:', error);
+      }
     }
   },
   created() {
-    const userData = JSON.parse(localStorage.getItem('userData'));
-    if (userData) {
-      this.userRole = userData.role_id;
-    }
+    this.getCurrentUserRole();
     this.fetchUsers();
     this.fetchDepartments();
   }
