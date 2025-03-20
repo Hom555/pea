@@ -695,6 +695,11 @@ export default {
         const formData = new FormData();
         formData.append('details', this.editingActivity.details.trim());
         formData.append('id', this.editingActivity.id);
+        formData.append('system_id', this.editingActivity.system_id);
+        formData.append('important_info', this.editingActivity.important_info_original);
+        formData.append('dept_change_code', this.editingActivity.dept_change_code);
+        formData.append('dept_full', this.editingActivity.dept_full);
+        formData.append('created_by', this.editingActivity.created_by);
 
         // เพิ่มไฟล์ใหม่
         if (this.newFiles.length > 0) {
@@ -725,7 +730,7 @@ export default {
         formData.append('image_paths', this.editingActivity.image_paths || '');
 
         const response = await axios.put(
-          `http://localhost:8088/api/Superactivities/${this.editingActivity.id}`,
+          `http://localhost:8088/api/activities/${this.editingActivity.id}`,
           formData,
           {
             headers: {

@@ -128,10 +128,6 @@ router.get('/activities/:systemId/:infoId', async (req, res) => {
 router.put('/activities/:id', async (req, res) => {
   let connection;
   try {
-    // เพิ่ม log เพื่อตรวจสอบข้อมูลที่ได้รับ
-    console.log('Received data:', req.body);
-    console.log('Received files:', req.files);
-    
     connection = await pool.getConnection();
     const activityId = req.params.id;
 
@@ -140,13 +136,6 @@ router.put('/activities/:id', async (req, res) => {
       return res.status(400).json({ 
         status: 'error',
         message: 'กรุณากรอกรายละเอียด' 
-      });
-    }
-
-    if (!req.body.system_id || !req.body.important_info) {
-      return res.status(400).json({ 
-        status: 'error',
-        message: 'กรุณาระบุระบบและข้อมูลสำคัญ' 
       });
     }
 
@@ -173,7 +162,7 @@ router.put('/activities/:id', async (req, res) => {
       SET 
         details = ?,
         system_id = ?,
-        important_info_id = ?,
+        important_info = ?,
         dept_change_code = ?,
         dept_full = ?,
         updated_at = CURRENT_TIMESTAMP,
@@ -241,17 +230,11 @@ router.put('/activities/:id', async (req, res) => {
         (Array.isArray(req.body.removedFiles) ? req.body.removedFiles : [req.body.removedFiles]) : 
         [];
 
-      console.log('Processing file deletion:', {
-        currentFiles,
-        removedFiles
-      });
-
       // ลบไฟล์ที่ถูกเลือก
       for (const filePath of removedFiles) {
         const fullPath = path.join(__dirname, '..', filePath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
-          console.log('Deleted file:', fullPath);
         }
       }
 
@@ -266,17 +249,11 @@ router.put('/activities/:id', async (req, res) => {
         (Array.isArray(req.body.removedImages) ? req.body.removedImages : [req.body.removedImages]) : 
         [];
 
-      console.log('Processing image deletion:', {
-        currentImages,
-        removedImages
-      });
-
       // ลบรูปภาพที่ถูกเลือก
       for (const imagePath of removedImages) {
         const fullPath = path.join(__dirname, '..', imagePath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
-          console.log('Deleted image:', fullPath);
         }
       }
 
@@ -287,11 +264,6 @@ router.put('/activities/:id', async (req, res) => {
     // เพิ่มไฟล์และรูปภาพใหม่
     updatedFilePaths = [...updatedFilePaths, ...filePaths];
     updatedImagePaths = [...updatedImagePaths, ...imagePaths];
-
-    console.log('Final paths:', {
-      updatedFilePaths,
-      updatedImagePaths
-    });
 
     // อัพเดตพาธของไฟล์ในฐานข้อมูล
     await connection.query(
