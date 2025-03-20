@@ -728,23 +728,28 @@ export default {
         this.toast.error(error.response?.data?.message || 'ไม่สามารถลบผู้ใช้งานได้');
       }
     },
-    getCurrentUserRole() {
+    async getCurrentUserRole() {
       try {
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        console.log('userData from localStorage:', userData);
-        if (userData && userData.role_id) {
-          this.currentUserRole = parseInt(userData.role_id);
+        // ใช้ API call แทนการอ่านจาก localStorage
+        const response = await axios.get('http://localhost:8088/api/check-permission');
+        if (response.data && response.data.data) {
+          this.currentUserRole = response.data.data.role_id;
           console.log('Set currentUserRole to:', this.currentUserRole);
         }
       } catch (error) {
         console.error('Error getting user role:', error);
+        this.toast.error('ไม่สามารถดึงข้อมูลสิทธิ์ผู้ใช้ได้');
       }
     }
   },
-  created() {
-    this.getCurrentUserRole();
-    this.fetchUsers();
-    this.fetchDepartments();
+  async created() {
+    // เรียกใช้ getCurrentUserRole ก่อน
+    await this.getCurrentUserRole();
+    // จากนั้นจึงเรียกใช้ fetchUsers และ fetchDepartments
+    await Promise.all([
+      this.fetchUsers(),
+      this.fetchDepartments()
+    ]);
   }
 }
 </script>
