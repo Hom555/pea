@@ -409,7 +409,7 @@ export default {
 </script>
 <style scoped>
 .container {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 40px auto;
   padding: 20px;
   background-color: #ffffff;
@@ -473,9 +473,21 @@ th {
   /* background-color: #f8f9fa; */
 }
 
+.th-no {
+  width: 80px;
+}
+
+.th-name {
+  width: 40%;
+}
+
+.th-dept {
+  width: 30%;
+}
+
 .th-actions {
+  width: 200px;
   text-align: center;
-  min-width: 220px; /* กำหนดความกว้างขั้นต่ำให้พอดีกับปุ่ม */
 }
 
 td {

@@ -153,6 +153,20 @@ router.put('/activities/:id', async (req, res) => {
     // เริ่ม transaction
     await connection.beginTransaction();
 
+    // ดึงข้อมูลเก่าก่อนการอัพเดต
+    const [oldActivity] = await connection.query(
+      'SELECT * FROM activities WHERE id = ?',
+      [activityId]
+    );
+
+    if (!oldActivity.length) {
+      await connection.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'ไม่พบข้อมูลกิจกรรมที่ต้องการแก้ไข'
+      });
+    }
+
     // อัพเดตข้อมูลหลัก
     await connection.query(`
       UPDATE activities 
@@ -291,6 +305,33 @@ router.put('/activities/:id', async (req, res) => {
         activityId
       ]
     );
+
+    // บันทึกประวัติการแก้ไข
+    await connection.query(`
+      INSERT INTO activities_history (
+        activity_id,
+        important_info_old,
+        important_info_new,
+        details_old,
+        details_new,
+        file_paths_old,
+        file_paths_new,
+        image_paths_old,
+        image_paths_new,
+        modified_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      activityId,
+      oldActivity[0].important_info,
+      req.body.important_info,
+      oldActivity[0].details,
+      req.body.details,
+      oldActivity[0].file_paths,
+      updatedFilePaths.length > 0 ? updatedFilePaths.join(',') : null,
+      oldActivity[0].image_paths,
+      updatedImagePaths.length > 0 ? updatedImagePaths.join(',') : null,
+      req.body.created_by
+    ]);
 
     await connection.commit();
     

@@ -193,6 +193,7 @@
                 <select v-model="userForm.role" required>
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
+                  <!-- <option value="superadmin">Super Admin</option> -->
                 </select>
               </div>
             </div>
@@ -445,8 +446,21 @@ export default {
           return;
         }
 
+        // แปลง role เป็น role_id
+        let role_id;
+        switch (this.userForm.role) {
+          case 'admin':
+            role_id = 2;
+            break;
+          case 'superadmin':
+            role_id = 3;
+            break;
+          default:
+            role_id = 1;
+        }
+
         const userData = {
-          role_id: this.userForm.role === 'admin' ? 2 : 1,
+          role_id: role_id,
           emp_id: parseInt(this.userForm.employeeId),
           first_name: this.userForm.firstName,
           last_name: this.userForm.lastName,

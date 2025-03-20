@@ -458,7 +458,7 @@ app.post('/api/system-record', getUserData, async (req, res) => {
 // บันทึกประวัติการแก้ไขและอัพเดตข้อมูลในตาราง system_master
 app.put('/api/system-record/:id', getUserData, async (req, res) => {
   const id = req.params.id;
-  const { nameTH, nameEN } = req.body;
+  const { nameTH, nameEN, dept_full, dept_change_code } = req.body;
   let conn;
 
   try {
@@ -498,10 +498,12 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
       `UPDATE system_master 
        SET name_th = ?, 
            name_en = ?, 
+           dept_full = ?,
+           dept_change_code = ?,
            updated_by = ?,
            updated_at = CURRENT_TIMESTAMP 
        WHERE id = ?`,
-      [nameTH, nameEN, req.user.emp_id, id]
+      [nameTH, nameEN, dept_full, dept_change_code, req.user.emp_id, id]
     );
     
     if (result.affectedRows === 0) {
@@ -514,29 +516,24 @@ app.put('/api/system-record/:id', getUserData, async (req, res) => {
 
     await conn.commit();
 
-    // ดึงข้อมูลอัปเดตพร้อมข้อมูลผู้ใช้
-    const [updatedRecord] = await conn.query(`
-      SELECT sm.*,
-             CONCAT(u1.first_name, ' ', u1.last_name) as created_by_name,
-             CONCAT(u2.first_name, ' ', u2.last_name) as updated_by_name
-      FROM system_master sm
-      LEFT JOIN users u1 ON sm.created_by = u1.emp_id
-      LEFT JOIN users u2 ON sm.updated_by = u2.emp_id
-      WHERE sm.id = ?
-    `, [id]);
+    // ส่งคืนข้อมูลที่อัปเดต
+    const [updatedRecord] = await conn.query(
+      'SELECT * FROM system_master WHERE id = ?',
+      [id]
+    );
 
-    res.json({ 
+    res.json({
       status: 'success',
-      message: 'อัปเดตข้อมูลสำเร็จ',
+      message: 'บันทึกการแก้ไขสำเร็จ',
       data: updatedRecord[0]
     });
 
   } catch (error) {
+    console.error('Error updating system record:', error);
     if (conn) await conn.rollback();
-    console.error('Error updating record:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       status: 'error',
-      message: 'ไม่สามารถอัปเดตข้อมูลได้' 
+      message: 'ไม่สามารถบันทึกการแก้ไขได้'
     });
   } finally {
     if (conn) conn.release();
