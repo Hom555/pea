@@ -125,7 +125,7 @@
               <input 
                 type="text" 
                 v-model="searchTerm" 
-                placeholder="ค้นหาระบบ..."
+                placeholder="ค้นหา"
               >
             </div>
             <button class="add-btn" @click="showAddModal = true">

@@ -10,7 +10,7 @@
           <input
             type="text"
             v-model="searchQuery"
-            placeholder="ค้นหาชื่อระบบ..."
+            placeholder="ค้นหา"
             class="search-input"
           />
         </div>
