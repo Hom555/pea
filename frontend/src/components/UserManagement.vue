@@ -36,7 +36,7 @@
             </select>
           </div>
           <div class="select-wrapper">
-            <i class="fas fa-user-shield"></i>
+            <i class="fas fa-users"></i>
             <select v-model="roleFilter">
               <option value="">ทุกระดับ</option>
               <option value="user">User</option>
@@ -105,7 +105,7 @@
               <td class="text-center">
                 <div class="action-buttons">
                   <button class="btn-manage" @click="manageRole(user)">
-                    <i class="fas fa-user-shield"></i>
+                    <i class="fas fa-user-edit"></i>
                     จัดการสิทธิ์
                   </button>
                   
@@ -193,7 +193,7 @@
                 <select v-model="userForm.role" required>
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
-                  <!-- <option value="superadmin">Super Admin</option> -->
+                  <!-- <option value="superadmin">superadmin</option> -->
                 </select>
               </div>
             </div>
@@ -365,9 +365,10 @@ export default {
       showRoleModal: false,
       selectedRole: null,
       roles: [
-        { value: 'user', label: 'User', icon: 'fas fa-user' },
-        { value: 'admin', label: 'Admin', icon: 'fas fa-user-cog' },
-        { value: 'superadmin', label: 'Super Admin', icon: 'fas fa-user-shield' }
+        //เลือกระดับผู้ใช้
+        // { value: 'user', label: 'User', icon: 'fas fa-user' },
+        { value: 'admin', label: 'Admin', icon: 'fas fa-user-shield' },
+        { value: 'superadmin', label: 'Super Admin', icon: 'fas fa-user-cog' }
       ],
       showDeleteModal: false,
       departments: []
