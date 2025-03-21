@@ -254,11 +254,20 @@ export default {
           return;
         }
       }
+
+        const department = this.getUserDepartment;
+        if (!department?.dept_change_code || !department?.dept_full) {
+          this.toast.error("ข้อมูลแผนกไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง");
+          return;
+        }
+
         await axios.put(
           `http://localhost:8088/api/system-record/${this.editRecordId}`,
           {
             nameTH: this.editNameTH,
-            nameEN: this.editNameEN
+            nameEN: this.editNameEN,
+            dept_change_code: department.dept_change_code,
+            dept_full: department.dept_full
           }
         );
         await this.fetchSystemRecords();
