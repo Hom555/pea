@@ -214,7 +214,7 @@
 
 <script>
 import axios from 'axios';
-import { mapState, mapMutations } from 'vuex';
+import { mapState, mapMutations, mapGetters } from 'vuex';
 import { useToast } from 'vue-toastification';
 
 export default {
@@ -229,6 +229,7 @@ export default {
       selectedSystem: null,
       showEditModal: false,
       selectedDept: '',
+      userRole: null,
       // แยกข้อมูลสำหรับการเพิ่มและแก้ไข
       addForm: {
         name_th: '',
@@ -249,6 +250,7 @@ export default {
   },
   computed: {
     ...mapState(['isSuperAdminVisible']),
+    ...mapGetters(['isSystemActive', 'getUserDepartment']),
     filteredSystems() {
       if (!this.searchTerm) return this.systems;
       const search = this.searchTerm.toLowerCase();
@@ -336,6 +338,19 @@ export default {
     async editSystem(system) {
       if (this.showEditModal) {
         try {
+          // ตรวจสอบสิทธิ์การแก้ไข
+          console.log('Current user role:', this.userRole);
+          console.log('User department:', this.getUserDepartment?.dept_change_code);
+          console.log('System department:', this.selectedSystem.dept_change_code);
+
+          if (this.userRole !== 3) { // ถ้าไม่ใช่ super admin
+            const userDept = this.getUserDepartment?.dept_change_code;
+            if (userDept !== this.selectedSystem.dept_change_code) {
+              this.toast.error("ไม่มีสิทธิ์แก้ไขข้อมูลของแผนกอื่น");
+              return;
+            }
+          }
+
           const formattedData = {
             nameTH: this.editForm.name_th,
             nameEN: this.editForm.name_en,
@@ -380,6 +395,16 @@ export default {
       }
     },
     confirmDeletePrompt(system) {
+      // ตรวจสอบสิทธิ์การลบ
+      console.log('Delete - Current user role:', this.userRole); // เพิ่ม log
+      if (this.userRole !== 3) { // ถ้าไม่ใช่ super admin
+        const userDept = this.getUserDepartment?.dept_change_code;
+        if (userDept !== system.dept_change_code) {
+          this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+          return;
+        }
+      }
+      
       this.selectedSystem = system;
       this.showDeleteModal = true;
     },
@@ -389,13 +414,23 @@ export default {
           this.toast.error('ไม่พบข้อมูลที่ต้องการลบ');
           return;
         }
-        
+
+        // ตรวจสอบสิทธิ์การลบอีกครั้ง
+        console.log('Confirm Delete - Current user role:', this.userRole); // เพิ่ม log
+        if (this.userRole !== 3) { // ถ้าไม่ใช่ super admin
+          const userDept = this.getUserDepartment?.dept_change_code;
+          if (userDept !== this.selectedSystem.dept_change_code) {
+            this.toast.error("ไม่มีสิทธิ์ลบข้อมูลของแผนกอื่น");
+            this.closeModal();
+            return;
+          }
+        }
+
         const response = await axios.delete(
           `http://localhost:8088/api/system-record/${this.selectedSystem.id}`
         );
 
         if (response.data.success) {
-          // อัพเดตข้อมูลในตารางโดยลบระบบที่เลือกออก
           this.systems = this.systems.filter(
             system => system.id !== this.selectedSystem.id
           );
@@ -468,6 +503,8 @@ export default {
       try {
         const response = await axios.get('http://localhost:8088/api/check-permission');
         this.userData = response.data.data;
+        this.userRole = response.data.data.role_id;
+        console.log('User Role:', this.userRole); // เพิ่ม log เพื่อตรวจสอบค่า
       } catch (error) {
         console.error('Error fetching user data:', error);
         this.toast.error('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
