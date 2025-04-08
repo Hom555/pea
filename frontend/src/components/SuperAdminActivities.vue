@@ -461,6 +461,7 @@
 
 <script>
 import axios from 'axios';
+import { useRoute } from 'vue-router';
 import { useToast } from 'vue-toastification';
 
 export default {
@@ -497,6 +498,7 @@ export default {
       selectedImages: [],
       showDeleteFileModal: false,
       selectedFile: null,
+      userRole: null,
     }
   },
 
